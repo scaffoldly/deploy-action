@@ -1,4 +1,4 @@
-import { debug, notice } from '@actions/core';
+import { debug } from '@actions/core';
 import { getInput } from '@actions/core';
 import { warn } from 'console';
 import fs from 'fs';
