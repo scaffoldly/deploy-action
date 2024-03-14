@@ -1,0 +1,13 @@
+name: 'Scaffoldly Deploy Action'
+description: 'Deploy a Scaffoldly Stack Application'
+branding:
+  icon: 'arrow-up-circle'
+  color: 'blue'
+inputs:
+  region:
+    description: The AWS Region
+    required: false
+    default: 'us-east-1'
+runs:
+  using: 'node20'
+  main: 'dist/main.js'
