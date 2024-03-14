@@ -4,10 +4,11 @@ branding:
   icon: 'arrow-up-circle'
   color: 'blue'
 inputs:
-  region:
-    description: The AWS Region
+  token:
+    description: A GitHub Token
     required: false
-    default: 'us-east-1'
+    default: ${{ github.token }}
 runs:
-  using: 'node20'
+  using: 'node18'
   main: 'dist/main.js'
+  post: 'dist/post.js'

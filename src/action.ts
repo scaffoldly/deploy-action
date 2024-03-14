@@ -1,22 +1,25 @@
-const { GITHUB_TOKEN, GITHUB_REPOSITORY } = process.env;
+import { getInput } from '@actions/core';
+
+const { GITHUB_TOKEN } = process.env;
 
 export class Action {
   async run(): Promise<void> {
-    if (!GITHUB_TOKEN) {
-      throw new Error('Missing GITHUB_TOKEN environment variable');
-    }
+    const token = getInput('token') || GITHUB_TOKEN;
 
-    if (!GITHUB_REPOSITORY) {
-      throw new Error('Missing GITHUB_REPOSITORY environment variable');
-    }
-
-    const [org, repo] = GITHUB_REPOSITORY.split('/');
-    if (!org || !repo) {
-      throw new Error(
-        `Unable to parse owner and repo from GITHUB_REPOSITORY environment variable: ${GITHUB_REPOSITORY}`,
-      );
+    if (!token) {
+      throw new Error('Missing GitHub Token');
     }
 
     console.log('Running!');
+  }
+
+  async post(): Promise<void> {
+    const token = getInput('token') || GITHUB_TOKEN;
+
+    if (!token) {
+      throw new Error('Missing GitHub Token');
+    }
+
+    console.log('Post!');
   }
 }
