@@ -3,11 +3,7 @@ import { getInput } from '@actions/core';
 import { warn } from 'console';
 import fs from 'fs';
 import path from 'path';
-import {
-  CloudFormationClient,
-  CreateStackCommand,
-  DescribeStacksCommand,
-} from '@aws-sdk/client-cloudformation';
+import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 
 const { GITHUB_TOKEN } = process.env;
 
@@ -22,6 +18,8 @@ type ServerlessState = {
 };
 
 export class Action {
+  httpApiUrl?: string;
+
   async run(): Promise<void> {
     debug('Running!');
 
@@ -53,8 +51,6 @@ export class Action {
       return;
     }
 
-    let httpApiUrl: string | undefined = undefined;
-
     try {
       const stackName = `${serverlessState!.service.service}-${
         serverlessState!.service.provider.stage
@@ -78,13 +74,13 @@ export class Action {
         return;
       }
 
-      httpApiUrl = stack.Outputs?.find((o) => o.OutputKey === 'HttpApiUrl')?.OutputValue;
+      this.httpApiUrl = stack.Outputs?.find((o) => o.OutputKey === 'HttpApiUrl')?.OutputValue;
     } catch (e) {
       warn('Unable to determine HTTP API URL.');
       debug(e);
       return;
     }
 
-    notice(`HTTP API URL: ${httpApiUrl}`);
+    notice(`HTTP API URL: ${this.httpApiUrl}`);
   }
 }
