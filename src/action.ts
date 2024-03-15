@@ -1,10 +1,25 @@
-import { debug } from '@actions/core';
+import { debug, notice } from '@actions/core';
 import { getInput } from '@actions/core';
 import { warn } from 'console';
 import fs from 'fs';
 import path from 'path';
+import {
+  CloudFormationClient,
+  CreateStackCommand,
+  DescribeStacksCommand,
+} from '@aws-sdk/client-cloudformation';
 
 const { GITHUB_TOKEN } = process.env;
+
+type ServerlessState = {
+  service: {
+    service: string;
+    provider: {
+      stage: string;
+      region: string;
+    };
+  };
+};
 
 export class Action {
   async run(): Promise<void> {
@@ -26,9 +41,7 @@ export class Action {
       throw new Error('Missing GitHub Token');
     }
 
-    let serverlessState = {};
-    let createStack = {};
-    let updateStack = {};
+    let serverlessState: ServerlessState | undefined = undefined;
 
     try {
       serverlessState = JSON.parse(
@@ -36,32 +49,42 @@ export class Action {
       );
     } catch (e) {
       warn('No serverless state found.');
+      debug(e);
+      return;
     }
+
+    let httpApiUrl: string | undefined = undefined;
 
     try {
-      createStack = JSON.parse(
-        fs.readFileSync(
-          path.join('.serverless', 'cloudformation-template-create-stack.json'),
-          'utf8',
-        ),
+      const stackName = `${serverlessState!.service.service}-${
+        serverlessState!.service.provider.stage
+      }`;
+
+      const client = new CloudFormationClient({ region: serverlessState!.service.provider.region });
+
+      const describeStacks = await client.send(new DescribeStacksCommand({ StackName: stackName }));
+
+      const stack = describeStacks.Stacks?.find(
+        (s) =>
+          s.StackName === stackName &&
+          s.Tags?.find(
+            (t) => t.Key === 'STAGE' && t.Value === serverlessState!.service.provider.stage,
+          ),
       );
+
+      if (!stack) {
+        warn('Unable to find stack.');
+        debug(JSON.stringify(describeStacks));
+        return;
+      }
+
+      httpApiUrl = stack.Outputs?.find((o) => o.OutputKey === 'HttpApiUrl')?.OutputValue;
     } catch (e) {
-      warn('No cloudformation create stack found.');
+      warn('Unable to determine HTTP API URL.');
+      debug(e);
+      return;
     }
 
-    try {
-      updateStack = JSON.parse(
-        fs.readFileSync(
-          path.join('.serverless', 'cloudformation-template-update-stack.json'),
-          'utf8',
-        ),
-      );
-    } catch (e) {
-      warn('No cloudformation update stack found.');
-    }
-
-    console.log('!!! serverlessState', JSON.stringify(serverlessState));
-    console.log('!!! createStack', JSON.stringify(createStack));
-    console.log('!!! updateStack', JSON.stringify(updateStack));
+    notice(`HTTP API URL: ${httpApiUrl}`);
   }
 }
