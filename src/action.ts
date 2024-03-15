@@ -47,7 +47,7 @@ export class Action {
       );
     } catch (e) {
       warn('No serverless state found.');
-      debug(e);
+      debug(`Error: ${e}`);
       return;
     }
 
@@ -77,7 +77,7 @@ export class Action {
       this.httpApiUrl = stack.Outputs?.find((o) => o.OutputKey === 'HttpApiUrl')?.OutputValue;
     } catch (e) {
       warn('Unable to determine HTTP API URL.');
-      debug(e);
+      debug(`Error: ${e}`);
       return;
     }
 
