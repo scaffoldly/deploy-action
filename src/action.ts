@@ -4,6 +4,7 @@ import { warn } from 'console';
 import fs from 'fs';
 import path from 'path';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+import axios from 'axios';
 
 const { GITHUB_TOKEN } = process.env;
 
@@ -18,6 +19,20 @@ type ServerlessState = {
 };
 
 export class Action {
+  get githubJwks(): Promise<String> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const response = await axios.get(
+          'https://token.actions.githubusercontent.com/.well-known/jwks',
+        );
+
+        resolve(response.data);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
   async run(): Promise<void> {
     debug('Running!');
 
@@ -41,10 +56,13 @@ export class Action {
       return;
     }
 
-    console.log(
-      '!!! idToken',
-      Buffer.from(Buffer.from(idToken, 'utf8').toString('base64'), 'utf8').toString('base64'),
-    );
+    // console.log(
+    //   '!!! idToken',
+    //   Buffer.from(Buffer.from(idToken, 'utf8').toString('base64'), 'utf8').toString('base64'),
+    // );
+
+    const githubJwks = await this.githubJwks;
+    console.log('!!! githubJwks', githubJwks);
   }
 
   async post(): Promise<void> {
