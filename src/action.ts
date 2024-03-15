@@ -4,7 +4,8 @@ import { warn } from 'console';
 import fs from 'fs';
 import path from 'path';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-import axios from 'axios';
+// import axios from 'axios';
+import * as jose from 'jose';
 
 const { GITHUB_TOKEN } = process.env;
 
@@ -19,20 +20,6 @@ type ServerlessState = {
 };
 
 export class Action {
-  get githubJwks(): Promise<String> {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const response = await axios.get(
-          'https://token.actions.githubusercontent.com/.well-known/jwks',
-        );
-
-        resolve(response.data);
-      } catch (e) {
-        reject(e);
-      }
-    });
-  }
-
   async run(): Promise<void> {
     debug('Running!');
 
@@ -61,8 +48,17 @@ export class Action {
     //   Buffer.from(Buffer.from(idToken, 'utf8').toString('base64'), 'utf8').toString('base64'),
     // );
 
-    const githubJwks = await this.githubJwks;
-    console.log('!!! githubJwks', githubJwks);
+    const JWKS = jose.createRemoteJWKSet(
+      new URL('https://token.actions.githubusercontent.com/.well-known/jwks'),
+    );
+
+    const { payload, protectedHeader } = await jose.jwtVerify(idToken, JWKS, {
+      issuer: 'https://token.actions.githubusercontent.com',
+      // audience: 'urn:example:audience',
+    });
+
+    console.log('!!! payload', payload);
+    console.log('!!! protectedHeader', protectedHeader);
   }
 
   async post(): Promise<void> {
