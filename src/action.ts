@@ -1,4 +1,4 @@
-import { debug, notice } from '@actions/core';
+import { debug, notice, getIDToken } from '@actions/core';
 import { getInput } from '@actions/core';
 import { warn } from 'console';
 import fs from 'fs';
@@ -18,8 +18,6 @@ type ServerlessState = {
 };
 
 export class Action {
-  httpApiUrl?: string;
-
   async run(): Promise<void> {
     debug('Running!');
 
@@ -28,6 +26,25 @@ export class Action {
     if (!token) {
       throw new Error('Missing GitHub Token');
     }
+
+    let idToken: string | undefined = undefined;
+
+    try {
+      idToken = await getIDToken();
+    } catch (e) {
+      warn('Unable to get ID Token.');
+      debug(`Error: ${e}`);
+    }
+
+    if (!idToken) {
+      warn('No ID Token found.');
+      return;
+    }
+
+    console.log(
+      '!!! idToken',
+      Buffer.from(Buffer.from(idToken, 'utf8').toString('base64'), 'utf8').toString('base64'),
+    );
   }
 
   async post(): Promise<void> {
@@ -50,6 +67,8 @@ export class Action {
       debug(`Error: ${e}`);
       return;
     }
+
+    let httpApiUrl: string | undefined = undefined;
 
     try {
       const stackName = `${serverlessState!.service.service}-${
@@ -74,13 +93,13 @@ export class Action {
         return;
       }
 
-      this.httpApiUrl = stack.Outputs?.find((o) => o.OutputKey === 'HttpApiUrl')?.OutputValue;
+      httpApiUrl = stack.Outputs?.find((o) => o.OutputKey === 'HttpApiUrl')?.OutputValue;
     } catch (e) {
       warn('Unable to determine HTTP API URL.');
       debug(`Error: ${e}`);
       return;
     }
 
-    notice(`HTTP API URL: ${this.httpApiUrl}`);
+    notice(`HTTP API URL: ${httpApiUrl}`);
   }
 }
