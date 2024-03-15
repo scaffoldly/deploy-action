@@ -27,16 +27,41 @@ export class Action {
     }
 
     let serverlessState = {};
+    let createStack = {};
+    let updateStack = {};
 
     try {
       serverlessState = JSON.parse(
         fs.readFileSync(path.join('.serverless', 'serverless-state.json'), 'utf8'),
       );
     } catch (e) {
-      warn('No serverless state found, skipping post deployment actions.');
-      return;
+      warn('No serverless state found.');
     }
 
-    console.log('!!! serverlessState', serverlessState);
+    try {
+      createStack = JSON.parse(
+        fs.readFileSync(
+          path.join('.serverless', 'cloudformation-template-create-stack.json'),
+          'utf8',
+        ),
+      );
+    } catch (e) {
+      warn('No cloudformation create stack found.');
+    }
+
+    try {
+      updateStack = JSON.parse(
+        fs.readFileSync(
+          path.join('.serverless', 'cloudformation-template-update-stack.json'),
+          'utf8',
+        ),
+      );
+    } catch (e) {
+      warn('No cloudformation update stack found.');
+    }
+
+    console.log('!!! serverlessState', JSON.stringify(serverlessState));
+    console.log('!!! createStack', JSON.stringify(createStack));
+    console.log('!!! updateStack', JSON.stringify(updateStack));
   }
 }
