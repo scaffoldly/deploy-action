@@ -33,7 +33,7 @@ export class Action {
     let idToken: string | undefined = undefined;
 
     try {
-      idToken = await getIDToken();
+      idToken = await getIDToken('sts.amazonaws.com');
     } catch (e) {
       warn(
         'Unable to get ID Token. Please ensure the `id-token: write` is enabled in the GitHub Action permissions.',
