@@ -11,6 +11,9 @@ inputs:
   role:
     description: 'The AWS Role to use for deployment'
     required: true
+outputs:
+  stage:
+    description: The inferred stage from the branch or PR name
 runs:
   using: 'node20'
   main: 'dist/main.js'

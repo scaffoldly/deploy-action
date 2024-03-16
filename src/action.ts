@@ -1,4 +1,4 @@
-import { debug, notice, getIDToken, exportVariable, info } from '@actions/core';
+import { debug, notice, getIDToken, exportVariable, info, setOutput } from '@actions/core';
 import { getInput } from '@actions/core';
 import { context } from '@actions/github';
 import { warn } from 'console';
@@ -12,7 +12,7 @@ import {
 } from '@aws-sdk/client-sts';
 import { roleSetupInstructions } from './messages';
 
-const { GITHUB_REPOSITORY } = process.env;
+const { GITHUB_REPOSITORY, GITHUB_REF } = process.env;
 
 type ServerlessState = {
   service: {
@@ -29,6 +29,21 @@ export class Action {
     const region = getInput('region') || 'us-east-1';
     const role = getInput('role');
     const [owner, repo] = GITHUB_REPOSITORY?.split('/') || [];
+    const [, branchType, branchId] = GITHUB_REF?.split('/') || [];
+
+    if (!branchId) {
+      debug(`GITHUB_REF: ${GITHUB_REF}`);
+      debug(`branchType: ${branchType}`);
+      debug(`branchId: ${branchId}`);
+      throw new Error('Unable to determine branch from GITHUB_REF');
+    }
+
+    let deploymentStage = branchId;
+    if (branchType === 'pull') {
+      deploymentStage = `pr-${branchId}`;
+    }
+
+    setOutput('stage', deploymentStage);
 
     let idToken: string | undefined = undefined;
 
@@ -86,6 +101,8 @@ export class Action {
 
   async post(): Promise<void> {
     const httpApiUrl = await this.httpApiUrl;
+
+    // TODO: Detect branch/PR delete/close and remove the stage
 
     notice(`HTTP API URL: ${httpApiUrl}`);
   }
