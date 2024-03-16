@@ -4,10 +4,14 @@ branding:
   icon: 'arrow-up-circle'
   color: 'blue'
 inputs:
-  token:
-    description: A GitHub Token
+  region:
+    description: 'The AWS Region to deploy to'
     required: false
-    default: ${{ github.token }}
+    default: 'us-east-1'
+  role:
+    description: 'The AWS Role to use for deployment'
+    required: false
+    default: ${{ vars.DEPLOYMENT_ROLE }}
 runs:
   using: 'node20'
   main: 'dist/main.js'

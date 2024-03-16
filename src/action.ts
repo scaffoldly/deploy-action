@@ -1,13 +1,19 @@
-import { debug, notice, getIDToken } from '@actions/core';
+import { debug, notice, getIDToken, exportVariable, info } from '@actions/core';
 import { getInput } from '@actions/core';
+import { context } from '@actions/github';
 import { warn } from 'console';
 import fs from 'fs';
 import path from 'path';
-import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
-// import axios from 'axios';
-import * as jose from 'jose';
+import { CloudFormationClient, DescribeStacksCommand, Stack } from '@aws-sdk/client-cloudformation';
+import {
+  STSClient,
+  AssumeRoleWithWebIdentityCommand,
+  GetCallerIdentityCommand,
+} from '@aws-sdk/client-sts';
+import packageJson from '../package.json';
+import { roleSetupInstructions } from './messages';
 
-const { GITHUB_TOKEN } = process.env;
+const { GITHUB_TOKEN, GITHUB_REPOSITORY } = process.env;
 
 type ServerlessState = {
   service: {
@@ -21,20 +27,18 @@ type ServerlessState = {
 
 export class Action {
   async run(): Promise<void> {
-    debug('Running!');
-
-    const token = getInput('token') || GITHUB_TOKEN;
-
-    if (!token) {
-      throw new Error('Missing GitHub Token');
-    }
+    const region = getInput('region') || 'us-east-1';
+    const role = getInput('role');
+    const [owner, repo] = GITHUB_REPOSITORY?.split('/') || [];
 
     let idToken: string | undefined = undefined;
 
     try {
       idToken = await getIDToken();
     } catch (e) {
-      warn('Unable to get ID Token.');
+      warn(
+        'Unable to get ID Token. Please ensure the `id-token: write` is enabled in the GitHub Action permissions.',
+      );
       debug(`Error: ${e}`);
     }
 
@@ -43,53 +47,83 @@ export class Action {
       return;
     }
 
-    // console.log(
-    //   '!!! idToken',
-    //   Buffer.from(Buffer.from(idToken, 'utf8').toString('base64'), 'utf8').toString('base64'),
-    // );
+    try {
+      let client = new STSClient({ region });
+      const assumeResponse = await client.send(
+        new AssumeRoleWithWebIdentityCommand({
+          WebIdentityToken: idToken,
+          RoleArn: role,
+          RoleSessionName: `${packageJson.name}@${packageJson.version}:${context.runId}`,
+        }),
+      );
 
-    const JWKS = jose.createRemoteJWKSet(
-      new URL('https://token.actions.githubusercontent.com/.well-known/jwks'),
-    );
+      exportVariable('AWS_DEFAULT_REGION', region);
+      exportVariable('AWS_ACCESS_KEY_ID', assumeResponse.Credentials?.AccessKeyId);
+      exportVariable('AWS_SECRET_ACCESS_KEY', assumeResponse.Credentials?.SecretAccessKey);
+      exportVariable('AWS_SESSION_TOKEN', assumeResponse.Credentials?.SessionToken);
 
-    const { payload, protectedHeader } = await jose.jwtVerify(idToken, JWKS, {
-      issuer: 'https://token.actions.githubusercontent.com',
-      // audience: 'urn:example:audience',
-    });
+      client = new STSClient({
+        region,
+        credentials: {
+          accessKeyId: assumeResponse.Credentials!.AccessKeyId!,
+          secretAccessKey: assumeResponse.Credentials!.SecretAccessKey!,
+          sessionToken: assumeResponse.Credentials!.SessionToken!,
+        },
+      });
 
-    console.log('!!! payload', payload);
-    console.log('!!! protectedHeader', protectedHeader);
+      const callerIdentity = await client.send(new GetCallerIdentityCommand({}));
+
+      info(
+        `Assumed ${role}: ${callerIdentity.Arn} (Credential expiration at ${assumeResponse.Credentials?.Expiration})`,
+      );
+    } catch (e) {
+      if (!(e instanceof Error)) {
+        throw e;
+      }
+      debug(`Error: ${e}`);
+      throw new Error(`Unable to assume role: ${e.message}\n${roleSetupInstructions(owner, repo)}`);
+    }
   }
 
   async post(): Promise<void> {
-    debug('Post Running!');
-
     const token = getInput('token') || GITHUB_TOKEN;
 
     if (!token) {
       throw new Error('Missing GitHub Token');
     }
 
-    let serverlessState: ServerlessState | undefined = undefined;
+    const httpApiUrl = await this.httpApiUrl;
 
-    try {
-      serverlessState = JSON.parse(
-        fs.readFileSync(path.join('.serverless', 'serverless-state.json'), 'utf8'),
-      );
-    } catch (e) {
-      warn('No serverless state found.');
-      debug(`Error: ${e}`);
-      return;
-    }
+    notice(`HTTP API URL: ${httpApiUrl}`);
+  }
 
-    let httpApiUrl: string | undefined = undefined;
+  get serverlessState(): Promise<ServerlessState | undefined> {
+    return new Promise(async (resolve) => {
+      try {
+        const serverlessState = JSON.parse(
+          fs.readFileSync(path.join('.serverless', 'serverless-state.json'), 'utf8'),
+        );
 
-    try {
-      const stackName = `${serverlessState!.service.service}-${
-        serverlessState!.service.provider.stage
-      }`;
+        return resolve(serverlessState);
+      } catch (e) {
+        warn('No serverless state found.');
+        debug(`Error: ${e}`);
+        return;
+      }
+    });
+  }
 
-      const client = new CloudFormationClient({ region: serverlessState!.service.provider.region });
+  get stack(): Promise<Stack | undefined> {
+    return new Promise(async (resolve) => {
+      const serverlessState = await this.serverlessState;
+
+      if (!serverlessState) {
+        return resolve(undefined);
+      }
+
+      const stackName = `${serverlessState.service.service}-${serverlessState.service.provider.stage}`;
+
+      const client = new CloudFormationClient({ region: serverlessState.service.provider.region });
 
       const describeStacks = await client.send(new DescribeStacksCommand({ StackName: stackName }));
 
@@ -97,23 +131,29 @@ export class Action {
         (s) =>
           s.StackName === stackName &&
           s.Tags?.find(
-            (t) => t.Key === 'STAGE' && t.Value === serverlessState!.service.provider.stage,
+            (t) => t.Key === 'STAGE' && t.Value === serverlessState.service.provider.stage,
           ),
       );
 
       if (!stack) {
         warn('Unable to find stack.');
         debug(JSON.stringify(describeStacks));
-        return;
+        return resolve(undefined);
       }
 
-      httpApiUrl = stack.Outputs?.find((o) => o.OutputKey === 'HttpApiUrl')?.OutputValue;
-    } catch (e) {
-      warn('Unable to determine HTTP API URL.');
-      debug(`Error: ${e}`);
-      return;
-    }
+      return resolve(stack);
+    });
+  }
 
-    notice(`HTTP API URL: ${httpApiUrl}`);
+  get httpApiUrl(): Promise<string | undefined> {
+    return new Promise(async (resolve) => {
+      const stack = await this.stack;
+
+      if (!stack) {
+        return resolve(undefined);
+      }
+
+      return resolve(stack.Outputs?.find((o) => o.OutputKey === 'HttpApiUrl')?.OutputValue);
+    });
   }
 }
