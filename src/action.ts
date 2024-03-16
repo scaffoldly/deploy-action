@@ -10,7 +10,6 @@ import {
   AssumeRoleWithWebIdentityCommand,
   GetCallerIdentityCommand,
 } from '@aws-sdk/client-sts';
-import packageJson from '../package.json';
 import { roleSetupInstructions } from './messages';
 
 const { GITHUB_TOKEN, GITHUB_REPOSITORY } = process.env;
@@ -53,7 +52,7 @@ export class Action {
         new AssumeRoleWithWebIdentityCommand({
           WebIdentityToken: idToken,
           RoleArn: role,
-          RoleSessionName: `${packageJson.name}@${packageJson.version}-${context.runId}`,
+          RoleSessionName: `${context.workflow}-${context.runNumber}-${context.runId}`,
         }),
       );
 
