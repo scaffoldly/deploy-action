@@ -47,10 +47,13 @@ export class Action {
     }
     setOutput('stage', deploymentStage);
 
+    let deploy = true;
     let destroy = false;
     if (context.eventName === 'pull_request' && context.payload.action === 'closed') {
+      deploy = false;
       destroy = true;
     }
+    setOutput('deploy', deploy);
     setOutput('destroy', destroy);
 
     let idToken: string | undefined = undefined;
