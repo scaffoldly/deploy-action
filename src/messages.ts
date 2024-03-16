@@ -24,15 +24,31 @@ export const roleSetupInstructions = (owner: string, repo: string): string => {
       ]
     }
 
-3. Ensure the IAM role has the following policies attached:
-    - AWSLambdaFullAccess
-    - AWSLambdaRole
-    - AWSLambdaVPCAccessExecutionRole
-    - AWSLambdaENIManagementAccess
-    - AWSLambdaBasicExecutionRole
-    - AWSLambdaKinesisExecutionRole
-    - AWSLambdaSQSQueueExecutionRole
-    - AWSLambdaDynamoDB
+3. Add the following policy to ensure Serverless can deploy to your account:
+   (Feel free to adjust this policy according to your needs!)
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "dynamodb:*",
+                    "s3:*",
+                    "sns:*",
+                    "sqs:*",
+                    "cloudformation:*",
+                    "lambda:*",
+                    "iam:*",
+                    "apigateway:*",
+                    "secretsmanager:*",
+                    "logs:*",
+                    "xray:*",
+                    "events:*"
+                ],
+                "Resource": "*"
+            }
+        ]
+    }
 
 4. Add the AWS IAM Role ARN to your GitHub Repository Variables:
     - https://github.com/${owner}/${repo}/settings/variables/actions
