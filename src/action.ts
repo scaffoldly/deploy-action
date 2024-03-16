@@ -53,7 +53,7 @@ export class Action {
         new AssumeRoleWithWebIdentityCommand({
           WebIdentityToken: idToken,
           RoleArn: role,
-          RoleSessionName: `${packageJson.name}@${packageJson.version}:${context.runId}`,
+          RoleSessionName: `${packageJson.name}@${packageJson.version}-${context.runId}`,
         }),
       );
 
