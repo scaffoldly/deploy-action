@@ -11,6 +11,7 @@ import {
   GetCallerIdentityCommand,
 } from '@aws-sdk/client-sts';
 import { roleSetupInstructions } from './messages';
+import { boolean } from 'boolean';
 
 const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF } = process.env;
 
@@ -49,7 +50,11 @@ export class Action {
 
     let deploy = true;
     let destroy = false;
-    if (context.eventName === 'pull_request' && context.payload.action === 'closed') {
+    if (
+      (context.eventName === 'pull_request' && context.payload.action === 'closed') ||
+      (context.eventName === 'workflow_dispatch' &&
+        boolean(context.payload.inputs.destroy) === true)
+    ) {
       deploy = false;
       destroy = true;
     }
