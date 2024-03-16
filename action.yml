@@ -10,8 +10,7 @@ inputs:
     default: 'us-east-1'
   role:
     description: 'The AWS Role to use for deployment'
-    required: false
-    default: ${{ vars.DEPLOYMENT_ROLE }}
+    required: true
 runs:
   using: 'node20'
   main: 'dist/main.js'
