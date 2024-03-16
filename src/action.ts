@@ -12,7 +12,7 @@ import {
 } from '@aws-sdk/client-sts';
 import { roleSetupInstructions } from './messages';
 
-const { GITHUB_TOKEN, GITHUB_REPOSITORY } = process.env;
+const { GITHUB_REPOSITORY } = process.env;
 
 type ServerlessState = {
   service: {
@@ -85,12 +85,6 @@ export class Action {
   }
 
   async post(): Promise<void> {
-    const token = getInput('token') || GITHUB_TOKEN;
-
-    if (!token) {
-      throw new Error('Missing GitHub Token');
-    }
-
     const httpApiUrl = await this.httpApiUrl;
 
     notice(`HTTP API URL: ${httpApiUrl}`);
