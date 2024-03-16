@@ -52,7 +52,7 @@ export class Action {
         new AssumeRoleWithWebIdentityCommand({
           WebIdentityToken: idToken,
           RoleArn: role,
-          RoleSessionName: `${context.workflow}-${context.runNumber}-${context.runId}`,
+          RoleSessionName: `${owner}-${repo}-${context.runNumber}-${context.runId}`,
         }),
       );
 
