@@ -45,8 +45,13 @@ export class Action {
       }
       deploymentStage = `${GITHUB_BASE_REF}-pr-${branchId}`;
     }
-
     setOutput('stage', deploymentStage);
+
+    let destroy = false;
+    if (context.eventName === 'pull_request' && context.payload.action === 'closed') {
+      destroy = true;
+    }
+    setOutput('destroy', destroy);
 
     let idToken: string | undefined = undefined;
 
