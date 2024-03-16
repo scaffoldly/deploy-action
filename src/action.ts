@@ -12,7 +12,7 @@ import {
 } from '@aws-sdk/client-sts';
 import { roleSetupInstructions } from './messages';
 
-const { GITHUB_REPOSITORY, GITHUB_REF } = process.env;
+const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF } = process.env;
 
 type ServerlessState = {
   service: {
@@ -40,7 +40,10 @@ export class Action {
 
     let deploymentStage = branchId;
     if (branchType === 'pull') {
-      deploymentStage = `pr-${branchId}`;
+      if (!GITHUB_BASE_REF) {
+        throw new Error('Unable to determine base ref from GITHUB_BASE_REF');
+      }
+      deploymentStage = `${GITHUB_BASE_REF}-pr-${branchId}`;
     }
 
     setOutput('stage', deploymentStage);
