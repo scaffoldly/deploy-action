@@ -139,15 +139,6 @@ export class Action {
     return token;
   }
 
-  get prComment(): string {
-    return `
-[${this.commitSha}](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${this.commitSha}) has been deployed!
- - **Commit:** \`${this.commitSha}\`
- - **Stage:** \`${this.stage}\`
- - **URL:** [${this.httpApiUrl}](${this.httpApiUrl})
-`;
-  }
-
   get commitSha(): string {
     if (context.eventName === 'pull_request') {
       return `${context.payload.pull_request?.head.sha}`.substring(0, 7);
@@ -165,17 +156,29 @@ export class Action {
   async addPrComments(): Promise<void> {
     const destroy = boolean(getState('destroy'));
     if (destroy) {
+      debug('Destroying, not adding PR comment.');
       return;
     }
 
     const { prNumber } = this;
     if (!prNumber) {
+      debug('No PR number found, can not add PR comment.');
+      return;
+    }
+
+    const httpApiUrl = (await this.httpApiUrl) || 'Unknown';
+    if (!httpApiUrl) {
+      debug("No HTTP API URL found, can't add PR comment.");
       return;
     }
 
     const octokit = getOctokit(this.token);
     await octokit.rest.issues.createComment({
-      body: this.prComment,
+      body: `
+\`${this.commitSha}\` has been deployed!
+ - **Stage:** \`${this.stage}\`
+ - **URL:** [${httpApiUrl}](${httpApiUrl})
+`,
       owner: context.repo.owner,
       repo: context.repo.repo,
       issue_number: prNumber,
