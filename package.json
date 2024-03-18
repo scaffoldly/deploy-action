@@ -36,7 +36,8 @@
     "@aws-sdk/client-sts": "^3.533.0",
     "axios": "^1.6.7",
     "boolean": "^3.2.0",
-    "jose": "^5.2.3"
+    "jose": "^5.2.3",
+    "octokit": "^3.1.2"
   },
   "devDependencies": {
     "@babel/core": "^7.16.0",

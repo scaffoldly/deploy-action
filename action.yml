@@ -4,6 +4,10 @@ branding:
   icon: 'arrow-up-circle'
   color: 'blue'
 inputs:
+  token:
+    description: 'The GitHub Token to use for deployment'
+    required: false
+    default: ${{ github.token }}
   region:
     description: 'The AWS Region to deploy to'
     required: false

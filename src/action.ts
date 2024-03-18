@@ -1,6 +1,15 @@
-import { debug, notice, getIDToken, exportVariable, info, setOutput } from '@actions/core';
+import {
+  debug,
+  notice,
+  getIDToken,
+  exportVariable,
+  info,
+  setOutput,
+  saveState,
+  getState,
+} from '@actions/core';
 import { getInput } from '@actions/core';
-import { context } from '@actions/github';
+import { context, getOctokit } from '@actions/github';
 import { warn } from 'console';
 import fs from 'fs';
 import path from 'path';
@@ -30,23 +39,8 @@ export class Action {
     const region = getInput('region') || 'us-east-1';
     const role = getInput('role');
     const [owner, repo] = GITHUB_REPOSITORY?.split('/') || [];
-    const [, branchType, branchId] = GITHUB_REF?.split('/') || [];
 
-    if (!branchId) {
-      debug(`GITHUB_REF: ${GITHUB_REF}`);
-      debug(`branchType: ${branchType}`);
-      debug(`branchId: ${branchId}`);
-      throw new Error('Unable to determine branch from GITHUB_REF');
-    }
-
-    let deploymentStage = branchId;
-    if (branchType === 'pull') {
-      if (!GITHUB_BASE_REF) {
-        throw new Error('Unable to determine base ref from GITHUB_BASE_REF');
-      }
-      deploymentStage = `${GITHUB_BASE_REF}-pr-${branchId}`;
-    }
-    setOutput('stage', deploymentStage);
+    setOutput('stage', this.stage);
 
     let deploy = true;
     let destroy = false;
@@ -59,6 +53,7 @@ export class Action {
       destroy = true;
     }
     setOutput('deploy', deploy);
+    saveState('destroy', destroy);
     setOutput('destroy', destroy);
 
     let idToken: string | undefined = undefined;
@@ -115,11 +110,82 @@ export class Action {
     }
   }
 
+  get stage(): string {
+    const [, branchType, branchId] = GITHUB_REF?.split('/') || [];
+
+    if (!branchId) {
+      debug(`GITHUB_REF: ${GITHUB_REF}`);
+      debug(`branchType: ${branchType}`);
+      debug(`branchId: ${branchId}`);
+      throw new Error('Unable to determine branch from GITHUB_REF');
+    }
+
+    let deploymentStage = branchId;
+    if (branchType === 'pull') {
+      if (!GITHUB_BASE_REF) {
+        throw new Error('Unable to determine base ref from GITHUB_BASE_REF');
+      }
+      deploymentStage = `${GITHUB_BASE_REF}-pr-${branchId}`;
+    }
+
+    return deploymentStage;
+  }
+
+  get token(): string {
+    const token = getInput('token');
+    if (!token) {
+      throw new Error('Missing GITHUB_TOKEN');
+    }
+    return token;
+  }
+
+  get prComment(): string {
+    return `
+[${this.commitSha}](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${this.commitSha} has been deployed!
+ - **Commit:** \`${this.commitSha}\`
+ - **Stage:** \`${this.stage}\`
+ - **URL:** [${this.httpApiUrl}](${this.httpApiUrl})
+`;
+  }
+
+  get commitSha(): string {
+    if (context.eventName === 'pull_request') {
+      return `${context.payload.pull_request?.head.sha}`.substring(0, 7);
+    }
+    return context.sha.substring(0, 7);
+  }
+
+  get prNumber(): number | undefined {
+    if (context.eventName === 'pull_request') {
+      return context.payload.pull_request?.number;
+    }
+    return undefined;
+  }
+
+  async addPrComments(): Promise<void> {
+    const destroy = boolean(getState('destroy'));
+    if (destroy) {
+      return;
+    }
+
+    const { prNumber } = this;
+    if (!prNumber) {
+      return;
+    }
+
+    const octokit = getOctokit(this.token);
+    await octokit.rest.issues.createComment({
+      body: this.prComment,
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      issue_number: prNumber,
+    });
+  }
+
   async post(): Promise<void> {
     const httpApiUrl = await this.httpApiUrl;
 
-    // TODO: Detect branch/PR delete/close and remove the stage
-
+    await this.addPrComments();
     notice(`HTTP API URL: ${httpApiUrl}`);
   }
 
