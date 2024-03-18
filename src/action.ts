@@ -175,7 +175,8 @@ export class Action {
     const octokit = getOctokit(this.token);
     await octokit.rest.issues.createComment({
       body: `
-\`${this.commitSha}\` has been deployed!
+${this.commitSha} has been deployed!
+ - **Commit:** \`${this.commitSha}\`
  - **Stage:** \`${this.stage}\`
  - **URL:** [${httpApiUrl}](${httpApiUrl}) (exclusively for this PR)
 `,
