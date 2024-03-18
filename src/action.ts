@@ -141,7 +141,7 @@ export class Action {
 
   get prComment(): string {
     return `
-[${this.commitSha}](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${this.commitSha} has been deployed!
+[${this.commitSha}](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${this.commitSha}) has been deployed!
  - **Commit:** \`${this.commitSha}\`
  - **Stage:** \`${this.stage}\`
  - **URL:** [${this.httpApiUrl}](${this.httpApiUrl})
