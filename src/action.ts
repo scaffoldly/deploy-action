@@ -177,7 +177,7 @@ export class Action {
       body: `
 \`${this.commitSha}\` has been deployed!
  - **Stage:** \`${this.stage}\`
- - **URL:** [${httpApiUrl}](${httpApiUrl})
+ - **URL:** [${httpApiUrl}](${httpApiUrl}) (exclusively for this PR)
 `,
       owner: context.repo.owner,
       repo: context.repo.repo,
