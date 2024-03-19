@@ -1,10 +1,12 @@
 import { Action } from './action';
-import { setFailed, notice } from '@actions/core';
+import { setFailed, notice, getState } from '@actions/core';
+import { ActionState } from './main';
 
 (async () => {
   try {
     const action = new Action();
-    await action.post();
+    const state = JSON.parse(getState('state')) as ActionState;
+    await action.post(state);
   } catch (e) {
     if (e instanceof Error) {
       setFailed(e.message);

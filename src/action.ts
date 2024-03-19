@@ -1,13 +1,4 @@
-import {
-  debug,
-  notice,
-  getIDToken,
-  exportVariable,
-  info,
-  setOutput,
-  saveState,
-  getState,
-} from '@actions/core';
+import { debug, notice, getIDToken, exportVariable, info } from '@actions/core';
 import { getInput } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 import { warn } from 'console';
@@ -19,8 +10,9 @@ import {
   AssumeRoleWithWebIdentityCommand,
   GetCallerIdentityCommand,
 } from '@aws-sdk/client-sts';
-import { roleSetupInstructions } from './messages';
+import { deployedMarkdown, deployingMarkdown, roleSetupInstructions } from './messages';
 import { boolean } from 'boolean';
+import { ActionState } from './main';
 
 const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF } = process.env;
 
@@ -35,14 +27,19 @@ type ServerlessState = {
 };
 
 export class Action {
-  async run(): Promise<void> {
+  async run(): Promise<{
+    stage: string;
+    deploy: boolean;
+    destroy: boolean;
+    noticeMessage?: string;
+    commentId?: number;
+    failed: boolean;
+  }> {
     const region = getInput('region') || 'us-east-1';
     const role = getInput('role');
     const [owner, repo] = GITHUB_REPOSITORY?.split('/') || [];
 
-    setOutput('stage', this.stage);
-
-    let deploy = true;
+    let deploy = false;
     let destroy = false;
     if (
       (context.eventName === 'pull_request' && context.payload.action === 'closed') ||
@@ -51,26 +48,14 @@ export class Action {
     ) {
       deploy = false;
       destroy = true;
-    }
-    setOutput('deploy', deploy);
-    saveState('destroy', destroy);
-    setOutput('destroy', destroy);
-
-    let idToken: string | undefined = undefined;
-
-    try {
-      idToken = await getIDToken('sts.amazonaws.com');
-    } catch (e) {
-      warn(
-        'Unable to get ID Token. Please ensure the `id-token: write` is enabled in the GitHub Action permissions.',
-      );
-      debug(`Error: ${e}`);
+    } else {
+      deploy = true;
+      destroy = false;
     }
 
-    if (!idToken) {
-      warn('No ID Token found.');
-      return;
-    }
+    const idToken = await this.idToken;
+
+    const commentId = await this.createDeployingComment(destroy);
 
     try {
       let client = new STSClient({ region });
@@ -106,8 +91,23 @@ export class Action {
         throw e;
       }
       debug(`Error: ${e}`);
-      throw new Error(`Unable to assume role: ${e.message}\n${roleSetupInstructions(owner, repo)}`);
+      return {
+        stage: this.stage,
+        deploy: false,
+        destroy: false,
+        failed: false,
+        commentId,
+        noticeMessage: await roleSetupInstructions(owner, repo),
+      };
     }
+
+    return {
+      stage: this.stage,
+      deploy,
+      destroy,
+      commentId,
+      failed: false,
+    };
   }
 
   get stage(): string {
@@ -125,7 +125,7 @@ export class Action {
       if (!GITHUB_BASE_REF) {
         throw new Error('Unable to determine base ref from GITHUB_BASE_REF');
       }
-      deploymentStage = `${GITHUB_BASE_REF}-pr-${branchId}`;
+      deploymentStage = `${GITHUB_BASE_REF.replaceAll('/', '-')}-pr-${branchId}`;
     }
 
     return deploymentStage;
@@ -137,6 +137,18 @@ export class Action {
       throw new Error('Missing GITHUB_TOKEN');
     }
     return token;
+  }
+
+  get idToken(): Promise<string> {
+    return new Promise(async (resolve) => {
+      const idToken = await getIDToken('sts.amazonaws.com');
+      if (!idToken) {
+        throw new Error(
+          'No ID Token found. Please ensure the `id-token: write` is enabled in the GitHub Action permissions.',
+        );
+      }
+      return resolve(idToken);
+    });
   }
 
   get commitSha(): string {
@@ -153,8 +165,7 @@ export class Action {
     return undefined;
   }
 
-  async addPrComments(): Promise<void> {
-    const destroy = boolean(getState('destroy'));
+  async createDeployingComment(destroy: boolean): Promise<number | undefined> {
     if (destroy) {
       debug('Destroying, not adding PR comment.');
       return;
@@ -173,25 +184,55 @@ export class Action {
     }
 
     const octokit = getOctokit(this.token);
-    await octokit.rest.issues.createComment({
-      body: `${this.commitSha} has been deployed!
- - **Commit:** \`${this.commitSha}\`
- - **Stage:** \`${this.stage}\`
- - **URL:** [${httpApiUrl}](${httpApiUrl}) (exclusively for this PR)
 
-Note:
- - This stage (\`${this.stage}\`) and all resources will be deleted when the PR is closed.
-`,
+    const response = await octokit.rest.issues.createComment({
+      body: await deployingMarkdown(this.commitSha, this.stage),
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      issue_number: prNumber,
+    });
+
+    return response.data.id;
+  }
+
+  async updateDeployedComment(state: ActionState, commentId?: number): Promise<void> {
+    if (!commentId) {
+      // TODO: if comment ID is unknown, just use step summary
+      debug('No commentId found, can not add PR comment.');
+      return;
+    }
+
+    if (state.destroy) {
+      debug('Destroying, not adding PR comment.');
+      return;
+    }
+
+    const { prNumber } = this;
+    if (!prNumber) {
+      debug('No PR number found, can not add PR comment.');
+      return;
+    }
+
+    const httpApiUrl = (await this.httpApiUrl) || 'Unknown';
+    if (!httpApiUrl) {
+      debug("No HTTP API URL found, can't add PR comment.");
+      return;
+    }
+
+    const octokit = getOctokit(this.token);
+    await octokit.rest.issues.updateComment({
+      comment_id: commentId,
+      body: await deployedMarkdown(this.commitSha, state.stage, httpApiUrl),
       owner: context.repo.owner,
       repo: context.repo.repo,
       issue_number: prNumber,
     });
   }
 
-  async post(): Promise<void> {
+  async post(state: ActionState): Promise<void> {
     const httpApiUrl = await this.httpApiUrl;
 
-    await this.addPrComments();
+    await this.updateDeployedComment(state, state.commentId);
     notice(`HTTP API URL: ${httpApiUrl}`);
   }
 
