@@ -177,12 +177,6 @@ export class Action {
       return;
     }
 
-    const httpApiUrl = (await this.httpApiUrl) || 'Unknown';
-    if (!httpApiUrl) {
-      debug("No HTTP API URL found, can't add PR comment.");
-      return;
-    }
-
     const octokit = getOctokit(this.token);
 
     const response = await octokit.rest.issues.createComment({
