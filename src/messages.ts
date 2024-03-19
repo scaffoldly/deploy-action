@@ -13,6 +13,6 @@ export const deployingMarkdown = async (commitSha: string, stage: string) => {
   return ejs.render(deployingCommentMd, { commitSha, stage }, ejsOptions);
 };
 
-export const deployedMarkdown = async (commitSha: string, stage: string, httpApiUrl: string) => {
+export const deployedMarkdown = async (commitSha: string, stage: string, httpApiUrl?: string) => {
   return ejs.render(deployedCommentMd, { commitSha, stage, httpApiUrl }, ejsOptions);
 };

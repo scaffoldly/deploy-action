@@ -16,6 +16,8 @@ inputs:
     description: 'The AWS Role to use for deployment'
     required: true
 outputs:
+  httpApiUri:
+    description: 'The URL of the deployed HTTP API'
   stage:
     description: The inferred stage from the branch or PR name
   deploy:
@@ -24,5 +26,6 @@ outputs:
     description: If the serverless stack should be destroyed, defaults to false. True when a pull request is closed.
 runs:
   using: 'node20'
+  pre: 'dist/pre.js'
   main: 'dist/main.js'
   post: 'dist/post.js'

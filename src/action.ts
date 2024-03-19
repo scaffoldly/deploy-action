@@ -1,4 +1,4 @@
-import { debug, notice, getIDToken, exportVariable, info } from '@actions/core';
+import { debug, getIDToken, exportVariable, info } from '@actions/core';
 import { getInput } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 import { warn } from 'console';
@@ -12,7 +12,8 @@ import {
 } from '@aws-sdk/client-sts';
 import { deployedMarkdown, deployingMarkdown, roleSetupInstructions } from './messages';
 import { boolean } from 'boolean';
-import { ActionState } from './main';
+import { RunState } from './main';
+import { PreState } from './pre';
 
 const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF } = process.env;
 
@@ -27,18 +28,7 @@ type ServerlessState = {
 };
 
 export class Action {
-  async run(): Promise<{
-    stage: string;
-    deploy: boolean;
-    destroy: boolean;
-    noticeMessage?: string;
-    commentId?: number;
-    failed: boolean;
-  }> {
-    const region = getInput('region') || 'us-east-1';
-    const role = getInput('role');
-    const [owner, repo] = GITHUB_REPOSITORY?.split('/') || [];
-
+  async pre(): Promise<PreState> {
     let deploy = false;
     let destroy = false;
     if (
@@ -53,9 +43,28 @@ export class Action {
       destroy = false;
     }
 
-    const idToken = await this.idToken;
-
     const commentId = await this.createDeployingComment(destroy);
+
+    return {
+      deploy,
+      destroy,
+      stage: this.stage,
+      commentId,
+    };
+  }
+
+  async run(state: PreState): Promise<{
+    stage: string;
+    deploy: boolean;
+    destroy: boolean;
+    summaryMessage?: string;
+    commentId?: number;
+  }> {
+    const region = getInput('region') || 'us-east-1';
+    const role = getInput('role');
+    const [owner, repo] = GITHUB_REPOSITORY?.split('/') || [];
+
+    const idToken = await this.idToken;
 
     try {
       let client = new STSClient({ region });
@@ -95,18 +104,16 @@ export class Action {
         stage: this.stage,
         deploy: false,
         destroy: false,
-        failed: false,
-        commentId,
-        noticeMessage: await roleSetupInstructions(owner, repo),
+        commentId: state.commentId,
+        summaryMessage: await roleSetupInstructions(owner, repo),
       };
     }
 
     return {
       stage: this.stage,
-      deploy,
-      destroy,
-      commentId,
-      failed: false,
+      deploy: state.deploy,
+      destroy: state.destroy,
+      commentId: state.commentId,
     };
   }
 
@@ -189,45 +196,53 @@ export class Action {
     return response.data.id;
   }
 
-  async updateDeployedComment(state: ActionState, commentId?: number): Promise<void> {
+  async updateDeployedComment(
+    state: RunState,
+    commentId?: number,
+  ): Promise<{ httpApiUrl: string | undefined; summaryMessage: string }> {
+    let summaryMessage = state.summaryMessage;
+    let httpApiUrl = await this.httpApiUrl;
+
+    if (!summaryMessage) {
+      summaryMessage = await deployedMarkdown(this.commitSha, state.stage, httpApiUrl);
+    }
+
     if (!commentId) {
       // TODO: if comment ID is unknown, just use step summary
       debug('No commentId found, can not add PR comment.');
-      return;
+      return { httpApiUrl, summaryMessage };
     }
 
     if (state.destroy) {
       debug('Destroying, not adding PR comment.');
-      return;
+      return { httpApiUrl, summaryMessage };
     }
 
     const { prNumber } = this;
     if (!prNumber) {
       debug('No PR number found, can not add PR comment.');
-      return;
-    }
-
-    const httpApiUrl = (await this.httpApiUrl) || 'Unknown';
-    if (!httpApiUrl) {
-      debug("No HTTP API URL found, can't add PR comment.");
-      return;
+      return { httpApiUrl, summaryMessage };
     }
 
     const octokit = getOctokit(this.token);
     await octokit.rest.issues.updateComment({
       comment_id: commentId,
-      body: await deployedMarkdown(this.commitSha, state.stage, httpApiUrl),
+      body: summaryMessage,
       owner: context.repo.owner,
       repo: context.repo.repo,
       issue_number: prNumber,
     });
+
+    return { httpApiUrl, summaryMessage };
   }
 
-  async post(state: ActionState): Promise<void> {
-    const httpApiUrl = await this.httpApiUrl;
+  async post(state: RunState): Promise<{ httpApiUrl?: string; summaryMessage: string }> {
+    const { httpApiUrl, summaryMessage } = await this.updateDeployedComment(state, state.commentId);
 
-    await this.updateDeployedComment(state, state.commentId);
-    notice(`HTTP API URL: ${httpApiUrl}`);
+    return {
+      httpApiUrl,
+      summaryMessage,
+    };
   }
 
   get serverlessState(): Promise<ServerlessState | undefined> {

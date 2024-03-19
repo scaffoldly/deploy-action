@@ -18,7 +18,7 @@
          "Action": "sts:AssumeRoleWithWebIdentity",
          "Condition": {
            "StringEquals": {
-             "token.actions.githubusercontent.com:sub": "repo:{%owner%}/{%repo%}:*"
+             "token.actions.githubusercontent.com:sub": "repo:{%= owner %}/{%= repo %}:*"
            }
          }
        }
@@ -58,7 +58,7 @@
 
 4. Add the AWS IAM Role ARN to your GitHub Repository Variables:
 
-   - https://github.com/{%owner%}/{%repo%}/settings/variables/actions
+   - https://github.com/{%= owner %}/{%= repo %}/settings/variables/actions
    - **Name**: DEPLOYMENT_ROLE
    - **Value**: `arn:aws:iam::YOUR_ACCOUNT_ID:role/YOUR_ROLE_NAME`
 

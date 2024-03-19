@@ -4,6 +4,7 @@ module.exports = {
   target: 'node',
   mode: 'production',
   entry: {
+    pre: './src/pre.ts',
     main: './src/main.ts',
     post: './src/post.ts',
   },
