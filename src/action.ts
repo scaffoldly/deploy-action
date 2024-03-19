@@ -174,11 +174,13 @@ export class Action {
 
     const octokit = getOctokit(this.token);
     await octokit.rest.issues.createComment({
-      body: `
-${this.commitSha} has been deployed!
+      body: `${this.commitSha} has been deployed!
  - **Commit:** \`${this.commitSha}\`
  - **Stage:** \`${this.stage}\`
  - **URL:** [${httpApiUrl}](${httpApiUrl}) (exclusively for this PR)
+
+Note:
+ - This stage (\`${this.stage}\`) and all resources will be deleted when the PR is closed.
 `,
       owner: context.repo.owner,
       repo: context.repo.repo,
