@@ -53,13 +53,9 @@ export class Action {
     };
   }
 
-  async run(state: PreState): Promise<{
-    stage: string;
-    deploy: boolean;
-    destroy: boolean;
-    summaryMessage?: string;
-    commentId?: number;
-  }> {
+  async run(state: PreState): Promise<RunState> {
+    debug(`state: ${JSON.stringify(state)}`);
+
     const region = getInput('region') || 'us-east-1';
     const role = getInput('role');
     const [owner, repo] = GITHUB_REPOSITORY?.split('/') || [];
@@ -101,19 +97,13 @@ export class Action {
       }
       debug(`Error: ${e}`);
       return {
-        stage: this.stage,
-        deploy: false,
-        destroy: false,
-        commentId: state.commentId,
+        ...state,
         summaryMessage: await roleSetupInstructions(owner, repo),
       };
     }
 
     return {
-      stage: this.stage,
-      deploy: state.deploy,
-      destroy: state.destroy,
-      commentId: state.commentId,
+      ...state,
     };
   }
 
@@ -237,6 +227,8 @@ export class Action {
   }
 
   async post(state: RunState): Promise<{ httpApiUrl?: string; summaryMessage: string }> {
+    debug(`state: ${JSON.stringify(state)}`);
+
     const { httpApiUrl, summaryMessage } = await this.updateDeployedComment(state, state.commentId);
 
     return {

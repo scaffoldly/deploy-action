@@ -12,7 +12,7 @@ export type PreState = {
   try {
     const action = new Action();
     const state = await action.pre();
-    saveState('state', JSON.stringify(state));
+    saveState('preState', JSON.stringify(state));
   } catch (e) {
     if (e instanceof Error) {
       setFailed(e.message);

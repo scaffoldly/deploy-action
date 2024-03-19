@@ -5,8 +5,9 @@ import { RunState } from './main';
 (async () => {
   try {
     const action = new Action();
-    const state = JSON.parse(getState('state')) as RunState;
-    const { httpApiUrl, summaryMessage } = await action.post(state);
+    const runState = JSON.parse(getState('runState')) as RunState;
+
+    const { httpApiUrl, summaryMessage } = await action.post(runState);
 
     if (httpApiUrl) {
       setOutput('httpApiUrl', httpApiUrl);
