@@ -98,6 +98,8 @@ export class Action {
       debug(`Error: ${e}`);
       return {
         ...state,
+        deploy: false,
+        destroy: false,
         summaryMessage: await roleSetupInstructions(owner, repo),
       };
     }

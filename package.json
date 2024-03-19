@@ -17,6 +17,8 @@
   },
   "main": "dist/main.js",
   "files": [
+    "dist/pre.js",
+    "dist/pre.js.map",
     "dist/main.js",
     "dist/main.js.map",
     "dist/post.js",
