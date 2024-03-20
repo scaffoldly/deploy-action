@@ -1,5 +1,5 @@
 import { Action } from './action';
-import { setFailed, notice, saveState } from '@actions/core';
+import { setFailed, notice, saveState, debug } from '@actions/core';
 
 export type PreState = {
   deploy: boolean;
@@ -11,8 +11,9 @@ export type PreState = {
 (async () => {
   try {
     const action = new Action();
-    const state = await action.pre();
-    saveState('preState', JSON.stringify(state));
+    const preState = await action.pre();
+    debug('preState: ' + JSON.stringify(preState));
+    saveState('preState', JSON.stringify(preState));
   } catch (e) {
     if (e instanceof Error) {
       setFailed(e.message);

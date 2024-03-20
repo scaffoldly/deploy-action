@@ -1,5 +1,5 @@
 import { Action } from './action';
-import { setFailed, notice, saveState, setOutput, getState } from '@actions/core';
+import { setFailed, notice, saveState, setOutput, getState, debug } from '@actions/core';
 import { PreState } from './pre';
 
 export type RunState = PreState & {
@@ -12,6 +12,7 @@ export type RunState = PreState & {
     const preState = JSON.parse(getState('preState')) as PreState;
 
     const runState = await action.run(preState);
+    debug(`runState: ${JSON.stringify(runState)}`);
 
     setOutput('stage', runState.stage);
     setOutput('deploy', runState.deploy.toString());

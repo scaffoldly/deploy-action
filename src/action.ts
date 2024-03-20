@@ -14,6 +14,7 @@ import { deployedMarkdown, deployingMarkdown, roleSetupInstructions } from './me
 import { boolean } from 'boolean';
 import { RunState } from './main';
 import { PreState } from './pre';
+import { PostState } from './post';
 
 const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF } = process.env;
 
@@ -146,7 +147,7 @@ export class Action {
           'No ID Token found. Please ensure the `id-token: write` is enabled in the GitHub Action permissions.',
         );
       }
-      return resolve(idToken);
+      resolve(idToken);
     });
   }
 
@@ -196,27 +197,31 @@ export class Action {
     let httpApiUrl = await this.httpApiUrl;
 
     if (!summaryMessage) {
+      debug('No summaryMessage found, generating deployment information message.');
       summaryMessage = await deployedMarkdown(this.commitSha, state.stage, httpApiUrl);
     }
 
     if (!commentId) {
       // TODO: if comment ID is unknown, just use step summary
-      debug('No commentId found, can not add PR comment.');
+      debug('No commentId found, skipping PR Comment.');
       return { httpApiUrl, summaryMessage };
     }
 
     if (state.destroy) {
-      debug('Destroying, not adding PR comment.');
+      debug('Destroying, skipping PR comment.');
       return { httpApiUrl, summaryMessage };
     }
 
     const { prNumber } = this;
     if (!prNumber) {
-      debug('No PR number found, can not add PR comment.');
+      debug('No PR number found, skipping PR comment.');
       return { httpApiUrl, summaryMessage };
     }
 
     const octokit = getOctokit(this.token);
+    debug(
+      `Updating PR Comment: ${prNumber} with commentId: ${commentId} and message: ${summaryMessage}`,
+    );
     await octokit.rest.issues.updateComment({
       comment_id: commentId,
       body: summaryMessage,
@@ -228,12 +233,13 @@ export class Action {
     return { httpApiUrl, summaryMessage };
   }
 
-  async post(state: RunState): Promise<{ httpApiUrl?: string; summaryMessage: string }> {
+  async post(state: RunState): Promise<PostState> {
     debug(`state: ${JSON.stringify(state)}`);
 
     const { httpApiUrl, summaryMessage } = await this.updateDeployedComment(state, state.commentId);
 
     return {
+      ...state,
       httpApiUrl,
       summaryMessage,
     };
@@ -246,11 +252,11 @@ export class Action {
           fs.readFileSync(path.join('.serverless', 'serverless-state.json'), 'utf8'),
         );
 
-        return resolve(serverlessState);
+        resolve(serverlessState);
       } catch (e) {
         warn('No serverless state found.');
-        debug(`Error: ${e}`);
-        return;
+        debug(`Caught Error: ${e}`);
+        resolve(undefined);
       }
     });
   }
@@ -260,7 +266,8 @@ export class Action {
       const serverlessState = await this.serverlessState;
 
       if (!serverlessState) {
-        return resolve(undefined);
+        resolve(undefined);
+        return;
       }
 
       const stackName = `${serverlessState.service.service}-${serverlessState.service.provider.stage}`;
@@ -280,10 +287,11 @@ export class Action {
       if (!stack) {
         warn('Unable to find stack.');
         debug(JSON.stringify(describeStacks));
-        return resolve(undefined);
+        resolve(undefined);
+        return;
       }
 
-      return resolve(stack);
+      resolve(stack);
     });
   }
 
@@ -292,10 +300,11 @@ export class Action {
       const stack = await this.stack;
 
       if (!stack) {
-        return resolve(undefined);
+        resolve(undefined);
+        return;
       }
 
-      return resolve(stack.Outputs?.find((o) => o.OutputKey === 'HttpApiUrl')?.OutputValue);
+      resolve(stack.Outputs?.find((o) => o.OutputKey === 'HttpApiUrl')?.OutputValue);
     });
   }
 }

@@ -1,21 +1,29 @@
 import { Action } from './action';
 import { setFailed, notice, getState, summary, setOutput } from '@actions/core';
 import { RunState } from './main';
+import { debug } from 'console';
+
+export type PostState = RunState & {
+  httpApiUrl?: string;
+};
 
 (async () => {
   try {
     const action = new Action();
     const runState = JSON.parse(getState('runState')) as RunState;
 
-    const { httpApiUrl, summaryMessage } = await action.post(runState);
+    const postState = await action.post(runState);
+    debug(`postState: ${JSON.stringify(postState)}`);
 
-    if (httpApiUrl) {
-      setOutput('httpApiUrl', httpApiUrl);
-      notice(`API URL: ${httpApiUrl}`);
+    if (postState.httpApiUrl) {
+      setOutput('httpApiUrl', postState.httpApiUrl);
+      notice(`API URL: ${postState.httpApiUrl}`);
     }
 
-    summary.addRaw(summaryMessage, true);
-    await summary.write({ overwrite: true });
+    if (postState.summaryMessage) {
+      summary.addRaw(postState.summaryMessage, true);
+      await summary.write({ overwrite: true });
+    }
   } catch (e) {
     if (e instanceof Error) {
       setFailed(e.message);
