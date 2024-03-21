@@ -4,6 +4,7 @@ import { PreState } from './pre';
 
 export type RunState = PreState & {
   summaryMessage?: string;
+  failureMessage?: string;
 };
 
 (async () => {
@@ -19,6 +20,10 @@ export type RunState = PreState & {
     setOutput('destroy', runState.destroy.toString());
 
     saveState('runState', JSON.stringify(runState));
+
+    if (runState.failureMessage) {
+      setFailed(runState.failureMessage);
+    }
   } catch (e) {
     if (e instanceof Error) {
       setFailed(e.message);

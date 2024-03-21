@@ -16,7 +16,7 @@ import { RunState } from './main';
 import { PreState } from './pre';
 import { PostState } from './post';
 
-const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF } = process.env;
+const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF, GITHUB_RUN_ATTEMPT } = process.env;
 
 type ServerlessState = {
   service: {
@@ -101,13 +101,55 @@ export class Action {
         ...state,
         deploy: false,
         destroy: false,
-        summaryMessage: await roleSetupInstructions(owner, repo),
+        summaryMessage: await roleSetupInstructions(owner, repo, await this.logsUrl),
+        failureMessage: e.message,
       };
     }
 
     return {
       ...state,
     };
+  }
+
+  get logsUrl(): Promise<string> {
+    return new Promise(async (resolve, reject) => {
+      const { owner, repo } = context.repo;
+      const { runId } = context;
+      let logsUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+
+      try {
+        const octokit = getOctokit(this.token);
+        const attempt = await octokit.rest.actions.getWorkflowRunAttempt({
+          attempt_number: parseInt(GITHUB_RUN_ATTEMPT || '1', 10),
+          owner,
+          repo,
+          run_id: runId,
+        });
+
+        console.log('!!! attempt', JSON.stringify(attempt));
+
+        const jobs = await octokit.rest.actions.listJobsForWorkflowRun({
+          owner,
+          repo,
+          run_id: runId,
+        });
+
+        console.log('!!! jobs', JSON.stringify(jobs));
+
+        // const job = jobs.data.jobs.find(
+        //   (j) => j.run_attempt === parseInt(GITHUB_RUN_ATTEMPT || '1', 10),
+        // );
+
+        resolve(logsUrl);
+      } catch (e) {
+        if (!(e instanceof Error)) {
+          reject(e);
+          return;
+        }
+        warn(`Unable to infer logs URL: ${e.message}`);
+      }
+      resolve(logsUrl);
+    });
   }
 
   get stage(): string {

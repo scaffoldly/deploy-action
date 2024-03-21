@@ -5,8 +5,12 @@ import deployedCommentMd from './templates/deployedComment.md';
 
 const ejsOptions: Options = { openDelimiter: '{', closeDelimiter: '}' };
 
-export const roleSetupInstructions = async (owner: string, repo: string): Promise<string> => {
-  return ejs.render(roleSetupMd, { owner, repo }, ejsOptions);
+export const roleSetupInstructions = async (
+  owner: string,
+  repo: string,
+  logsUrl: string,
+): Promise<string> => {
+  return ejs.render(roleSetupMd, { owner, repo, logsUrl }, ejsOptions);
 };
 
 export const deployingMarkdown = async (commitSha: string, stage: string) => {
