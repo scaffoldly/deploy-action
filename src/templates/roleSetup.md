@@ -68,4 +68,4 @@ Please follow these instructions to ensure the application can deploy to AWS:
    - **Name**: DEPLOYMENT_ROLE
    - **Value**: `arn:aws:iam::YOUR_ACCOUNT_ID:role/YOUR_ROLE_NAME`
 
-5. Re-run this action. Enable debug logging if you need more information.
+5. Re-run [this action]({%= logsUrl %}). Enable debug logging if you need more information.

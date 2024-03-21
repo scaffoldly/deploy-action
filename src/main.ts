@@ -2,10 +2,7 @@ import { Action } from './action';
 import { setFailed, notice, saveState, setOutput, getState, debug } from '@actions/core';
 import { PreState } from './pre';
 
-export type RunState = PreState & {
-  summaryMessage?: string;
-  failureMessage?: string;
-};
+export type RunState = PreState & {};
 
 (async () => {
   try {

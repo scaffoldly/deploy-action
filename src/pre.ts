@@ -5,7 +5,10 @@ export type PreState = {
   deploy: boolean;
   destroy: boolean;
   stage: string;
+  deploymentId?: number;
   commentId?: number;
+  summaryMessage?: string;
+  failureMessage?: string;
 };
 
 (async () => {

@@ -45,18 +45,23 @@ export class Action {
       destroy = false;
     }
 
-    const commentId = await this.createDeployingComment(destroy);
+    const deploymentId = await this.createDeployment();
+    const { commentId, message } = await this.createDeployingComment(destroy);
 
     return {
       deploy,
       destroy,
       stage: this.stage,
+      deploymentId,
       commentId,
+      summaryMessage: message,
     };
   }
 
   async run(state: PreState): Promise<RunState> {
     debug(`state: ${JSON.stringify(state)}`);
+
+    await this.updateDeployment(state, 'in_progress');
 
     const region = getInput('region') || 'us-east-1';
     const role = getInput('role');
@@ -215,34 +220,89 @@ export class Action {
     return undefined;
   }
 
-  async createDeployingComment(destroy: boolean): Promise<number | undefined> {
+  async createDeployment(): Promise<number | undefined> {
+    const octokit = getOctokit(this.token);
+
+    const response = await octokit.rest.repos.createDeployment({
+      ref: context.ref,
+      required_contexts: [],
+      environment: this.stage,
+      transient_environment: !!this.prNumber,
+      auto_merge: false,
+      owner: this.owner,
+      repo: this.repo,
+      task: context.job,
+      payload: {},
+      production_environment: this.stage === 'production',
+    });
+
+    if (typeof response.data === 'number') {
+      return response.data;
+    }
+
+    if ('id' in response.data) {
+      return response.data.id;
+    }
+
+    debug(`Response: ${JSON.stringify(response.data)}`);
+    warn("Unable to create deployment, response didn't contain an ID.");
+
+    return undefined;
+  }
+
+  async createDeployingComment(destroy: boolean): Promise<{ commentId?: number; message: string }> {
+    const message = await deployingMarkdown(this.commitSha, this.stage);
+
     if (destroy) {
       debug('Destroying, not adding PR comment.');
-      return;
+      return { message };
     }
 
     const { prNumber } = this;
     if (!prNumber) {
       debug('No PR number found, can not add PR comment.');
-      return;
+      return { message };
     }
 
     const octokit = getOctokit(this.token);
 
     const response = await octokit.rest.issues.createComment({
-      body: await deployingMarkdown(this.commitSha, this.stage),
+      body: message,
       owner: this.owner,
       repo: this.repo,
       issue_number: prNumber,
     });
 
-    return response.data.id;
+    return { commentId: response.data.id, message };
+  }
+
+  async updateDeployment(
+    state: RunState,
+    status: 'success' | 'failure' | 'inactive' | 'pending' | 'in_progress',
+  ) {
+    const { deploymentId } = state;
+    if (!deploymentId) {
+      debug('No deploymentId found, skipping deployment update.');
+      return;
+    }
+
+    const octokit = getOctokit(this.token);
+    debug(`Updating Deployment: ${deploymentId} with state: ${JSON.stringify(state)}`);
+
+    await octokit.rest.repos.createDeploymentStatus({
+      deployment_id: deploymentId,
+      state: status,
+      environment_url: await this.httpApiUrl,
+      log_url: await this.logsUrl,
+      environment: this.stage,
+      owner: this.owner,
+      repo: this.repo,
+    });
   }
 
   async updateDeployedComment(
     state: RunState,
-    commentId?: number,
-  ): Promise<{ httpApiUrl: string | undefined; summaryMessage: string }> {
+  ): Promise<{ httpApiUrl: string | undefined; message: string }> {
     let summaryMessage = state.summaryMessage;
     let httpApiUrl = await this.httpApiUrl;
 
@@ -251,21 +311,23 @@ export class Action {
       summaryMessage = await deployedMarkdown(this.commitSha, state.stage, httpApiUrl);
     }
 
+    const { commentId } = state;
+
     if (!commentId) {
       // TODO: if comment ID is unknown, just use step summary
       debug('No commentId found, skipping PR Comment.');
-      return { httpApiUrl, summaryMessage };
+      return { httpApiUrl, message: summaryMessage };
     }
 
     if (state.destroy) {
       debug('Destroying, skipping PR comment.');
-      return { httpApiUrl, summaryMessage };
+      return { httpApiUrl, message: summaryMessage };
     }
 
     const { prNumber } = this;
     if (!prNumber) {
       debug('No PR number found, skipping PR comment.');
-      return { httpApiUrl, summaryMessage };
+      return { httpApiUrl, message: summaryMessage };
     }
 
     const octokit = getOctokit(this.token);
@@ -280,18 +342,21 @@ export class Action {
       issue_number: prNumber,
     });
 
-    return { httpApiUrl, summaryMessage };
+    return { httpApiUrl, message: summaryMessage };
   }
 
   async post(state: RunState): Promise<PostState> {
     debug(`state: ${JSON.stringify(state)}`);
 
-    const { httpApiUrl, summaryMessage } = await this.updateDeployedComment(state, state.commentId);
+    const { httpApiUrl, message } = await this.updateDeployedComment(state);
+
+    const status = state.failureMessage ? 'failure' : 'success';
+    await this.updateDeployment(state, status);
 
     return {
       ...state,
       httpApiUrl,
-      summaryMessage,
+      summaryMessage: message,
     };
   }
 
