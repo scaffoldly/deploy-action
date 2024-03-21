@@ -32,5 +32,4 @@ export type RunState = PreState & {
     }
     throw e;
   }
-  process.exit(0);
 })();

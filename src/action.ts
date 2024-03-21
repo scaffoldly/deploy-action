@@ -16,7 +16,8 @@ import { RunState } from './main';
 import { PreState } from './pre';
 import { PostState } from './post';
 
-const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF, GITHUB_RUN_ATTEMPT } = process.env;
+const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF, GITHUB_RUN_ATTEMPT, GITHUB_EVENT_NAME } =
+  process.env;
 
 type ServerlessState = {
   service: {
@@ -33,8 +34,8 @@ export class Action {
     let deploy = false;
     let destroy = false;
     if (
-      (context.eventName === 'pull_request' && context.payload.action === 'closed') ||
-      (context.eventName === 'workflow_dispatch' &&
+      (GITHUB_EVENT_NAME === 'pull_request' && context.payload.action === 'closed') ||
+      (GITHUB_EVENT_NAME === 'workflow_dispatch' &&
         boolean(context.payload.inputs.destroy) === true)
     ) {
       deploy = false;
@@ -59,7 +60,6 @@ export class Action {
 
     const region = getInput('region') || 'us-east-1';
     const role = getInput('role');
-    const [owner, repo] = GITHUB_REPOSITORY?.split('/') || [];
 
     const idToken = await this.idToken;
 
@@ -69,7 +69,7 @@ export class Action {
         new AssumeRoleWithWebIdentityCommand({
           WebIdentityToken: idToken,
           RoleArn: role,
-          RoleSessionName: `${owner}-${repo}-${context.runNumber}-${context.runId}`,
+          RoleSessionName: `${this.owner}-${this.repo}-${context.runNumber}-${context.runId}`,
         }),
       );
 
@@ -101,7 +101,7 @@ export class Action {
         ...state,
         deploy: false,
         destroy: false,
-        summaryMessage: await roleSetupInstructions(owner, repo, await this.logsUrl),
+        summaryMessage: await roleSetupInstructions(this.owner, this.repo, await this.logsUrl),
         failureMessage: e.message,
       };
     }
@@ -113,34 +113,26 @@ export class Action {
 
   get logsUrl(): Promise<string> {
     return new Promise(async (resolve, reject) => {
-      const { owner, repo } = context.repo;
-      const { runId } = context;
-      let logsUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+      const { runId, job: jobName } = context;
+      let logsUrl = `https://github.com/${this.owner}/${this.repo}/actions/runs/${runId}`;
 
       try {
         const octokit = getOctokit(this.token);
-        const attempt = await octokit.rest.actions.getWorkflowRunAttempt({
-          attempt_number: parseInt(GITHUB_RUN_ATTEMPT || '1', 10),
-          owner,
-          repo,
-          run_id: runId,
-        });
-
-        console.log('!!! attempt', JSON.stringify(attempt));
 
         const jobs = await octokit.rest.actions.listJobsForWorkflowRun({
-          owner,
-          repo,
+          owner: this.owner,
+          repo: this.repo,
           run_id: runId,
         });
 
-        console.log('!!! jobs', JSON.stringify(jobs));
+        const job = jobs.data.jobs.find(
+          (j) => j.name === jobName && j.run_attempt === parseInt(GITHUB_RUN_ATTEMPT || '1', 10),
+        );
 
-        // const job = jobs.data.jobs.find(
-        //   (j) => j.run_attempt === parseInt(GITHUB_RUN_ATTEMPT || '1', 10),
-        // );
-
-        resolve(logsUrl);
+        if (job && job.html_url) {
+          resolve(job.html_url);
+          return;
+        }
       } catch (e) {
         if (!(e instanceof Error)) {
           reject(e);
@@ -171,6 +163,22 @@ export class Action {
     }
 
     return deploymentStage;
+  }
+
+  get owner(): string {
+    const [owner] = GITHUB_REPOSITORY?.split('/') || [];
+    if (!owner) {
+      throw new Error('Unable to determine owner from GITHUB_REPOSITORY');
+    }
+    return owner;
+  }
+
+  get repo(): string {
+    const [, repo] = GITHUB_REPOSITORY?.split('/') || [];
+    if (!repo) {
+      throw new Error('Unable to determine repo from GITHUB_REPOSITORY');
+    }
+    return repo;
   }
 
   get token(): string {
@@ -223,8 +231,8 @@ export class Action {
 
     const response = await octokit.rest.issues.createComment({
       body: await deployingMarkdown(this.commitSha, this.stage),
-      owner: context.repo.owner,
-      repo: context.repo.repo,
+      owner: this.owner,
+      repo: this.repo,
       issue_number: prNumber,
     });
 
@@ -267,8 +275,8 @@ export class Action {
     await octokit.rest.issues.updateComment({
       comment_id: commentId,
       body: summaryMessage,
-      owner: context.repo.owner,
-      repo: context.repo.repo,
+      owner: this.owner,
+      repo: this.repo,
       issue_number: prNumber,
     });
 

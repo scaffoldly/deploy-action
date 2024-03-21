@@ -1,8 +1,8 @@
 ### 🚨 Unable to Deploy to AWS 🚨
 
-Please follow these instructions to ensure the application can deploy to AWS.
+🤔 If you need more information on the failure, please review the [Deploy Logs]({%= logsUrl %}).
 
-If you need more information on the failure, please review the [Deploy Logs]({%= logsUrl %}).
+Please follow these instructions to ensure the application can deploy to AWS:
 
 1. If you haven't already, create an Identity Provider in AWS IAM for GitHub Actions:
 

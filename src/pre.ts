@@ -22,5 +22,4 @@ export type PreState = {
     }
     throw e;
   }
-  process.exit(0);
 })();

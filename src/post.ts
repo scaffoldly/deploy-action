@@ -17,7 +17,7 @@ export type PostState = RunState & {
 
     if (postState.httpApiUrl) {
       setOutput('httpApiUrl', postState.httpApiUrl);
-      notice(`API URL: ${postState.httpApiUrl}`);
+      notice(`URL: ${postState.httpApiUrl}`);
     }
 
     if (postState.summaryMessage) {
@@ -32,5 +32,4 @@ export type PostState = RunState & {
     }
     throw e;
   }
-  process.exit(0);
 })();
