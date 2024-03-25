@@ -1,9 +1,5 @@
-{%= commitSha %} has been deployed!
+{%= commitSha %} has been deployed to [{%= stage %}]({%= httpApiUrl %})!
 
 - **Commit:** `{%= commitSha %}`
 - **Stage:** `{%= stage %}`
-- **URL:** [{%= httpApiUrl %}]({%= httpApiUrl %}) (exclusively for this PR)
-
-Note:
-
-- This stage (`{%= stage %}`) and all resources will be deleted when the PR is closed.
+- **URL:** [{%= httpApiUrl %}]({%= httpApiUrl %})

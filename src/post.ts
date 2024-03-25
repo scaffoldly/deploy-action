@@ -1,28 +1,30 @@
-import { Action } from './action';
+import { Action, State } from './action';
 import { setFailed, notice, getState, summary, setOutput } from '@actions/core';
-import { RunState } from './main';
 import { debug } from 'console';
-
-export type PostState = RunState & {
-  httpApiUrl?: string;
-};
 
 (async () => {
   try {
     const action = new Action();
-    const runState = JSON.parse(getState('runState')) as RunState;
+    let state = JSON.parse(getState('state')) as State;
 
-    const postState = await action.post(runState);
-    debug(`postState: ${JSON.stringify(postState)}`);
+    state = await action.post(state);
+    debug(`state: ${JSON.stringify(state)}`);
 
-    if (postState.httpApiUrl) {
-      setOutput('httpApiUrl', postState.httpApiUrl);
-      notice(`URL: ${postState.httpApiUrl}`);
+    if (state.httpApiUrl) {
+      setOutput('httpApiUrl', state.httpApiUrl);
     }
 
-    if (postState.summaryMessage) {
-      summary.addRaw(postState.summaryMessage, true);
+    if (state.longMessage) {
+      summary.addRaw(state.longMessage, true);
       await summary.write({ overwrite: true });
+    }
+
+    if (state.failed) {
+      throw new Error(state.shortMessage);
+    }
+
+    if (state.shortMessage) {
+      notice(state.shortMessage);
     }
   } catch (e) {
     if (e instanceof Error) {

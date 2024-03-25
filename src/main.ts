@@ -1,29 +1,27 @@
-import { Action } from './action';
+import { Action, State } from './action';
 import { setFailed, notice, saveState, setOutput, getState, debug } from '@actions/core';
-import { PreState } from './pre';
-
-export type RunState = PreState & {};
 
 (async () => {
   try {
     const action = new Action();
-    const preState = JSON.parse(getState('preState')) as PreState;
+    let state = JSON.parse(getState('state')) as State;
 
-    const runState = await action.run(preState);
-    debug(`runState: ${JSON.stringify(runState)}`);
+    state = await action.run(state);
 
-    setOutput('stage', runState.stage);
-    setOutput('deploy', runState.deploy.toString());
-    setOutput('destroy', runState.destroy.toString());
+    debug(`state: ${JSON.stringify(state)}`);
 
-    saveState('runState', JSON.stringify(runState));
+    setOutput('stage', state.stage);
+    setOutput('deploy', state.deploy.toString());
+    setOutput('destroy', state.destroy.toString());
 
-    if (runState.failureMessage) {
-      setFailed(runState.failureMessage);
+    saveState('state', JSON.stringify(state));
+
+    if (state.failed) {
+      throw new Error(state.shortMessage);
     }
   } catch (e) {
     if (e instanceof Error) {
-      setFailed(e.message);
+      setFailed(e);
       notice(`Need help? https://scaffoldly.dev/help`);
       return;
     }

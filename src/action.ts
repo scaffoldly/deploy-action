@@ -10,11 +10,13 @@ import {
   AssumeRoleWithWebIdentityCommand,
   GetCallerIdentityCommand,
 } from '@aws-sdk/client-sts';
-import { deployedMarkdown, deployingMarkdown, roleSetupInstructions } from './messages';
+import {
+  deployedMarkdown,
+  deployingMarkdown,
+  preparingMarkdown,
+  roleSetupInstructions,
+} from './messages';
 import { boolean } from 'boolean';
-import { RunState } from './main';
-import { PreState } from './pre';
-import { PostState } from './post';
 
 const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF, GITHUB_RUN_ATTEMPT, GITHUB_EVENT_NAME } =
   process.env;
@@ -29,44 +31,47 @@ type ServerlessState = {
   };
 };
 
+export type State = {
+  deploy: boolean;
+  destroy: boolean;
+  stage: string;
+  httpApiUrl?: string;
+  deploymentId?: number;
+  commentId?: number;
+  failed?: boolean;
+  shortMessage?: string;
+  longMessage?: string;
+};
+
 export class Action {
-  async pre(): Promise<PreState> {
-    let deploy = false;
-    let destroy = false;
+  async pre(): Promise<State> {
+    let state: State = {
+      deploy: false,
+      destroy: false,
+      stage: this.stage,
+    };
+
     if (
       (GITHUB_EVENT_NAME === 'pull_request' && context.payload.action === 'closed') ||
       (GITHUB_EVENT_NAME === 'workflow_dispatch' &&
         boolean(context.payload.inputs.destroy) === true)
     ) {
-      deploy = false;
-      destroy = true;
+      state.deploy = false;
+      state.destroy = true;
     } else {
-      deploy = true;
-      destroy = false;
+      state.deploy = true;
+      state.destroy = false;
     }
-
-    const deploymentId = await this.createDeployment();
-    const { commentId, message } = await this.createDeployingComment(destroy);
-
-    return {
-      deploy,
-      destroy,
-      stage: this.stage,
-      deploymentId,
-      commentId,
-      summaryMessage: message,
-    };
-  }
-
-  async run(state: PreState): Promise<RunState> {
-    debug(`state: ${JSON.stringify(state)}`);
-
-    await this.updateDeployment(state, 'in_progress');
 
     const region = getInput('region') || 'us-east-1';
     const role = getInput('role');
-
     const idToken = await this.idToken;
+
+    const { shortMessage, longMessage } = await preparingMarkdown(this.commitSha, this.stage);
+    state.shortMessage = shortMessage;
+    state.longMessage = longMessage;
+
+    state = await this.createDeployment(state);
 
     try {
       let client = new STSClient({ region });
@@ -102,18 +107,59 @@ export class Action {
         throw e;
       }
       debug(`Error: ${e}`);
+
+      const { shortMessage, longMessage } = await roleSetupInstructions(
+        this.owner,
+        this.repo,
+        await this.logsUrl,
+      );
+
       return {
         ...state,
         deploy: false,
         destroy: false,
-        summaryMessage: await roleSetupInstructions(this.owner, this.repo, await this.logsUrl),
-        failureMessage: e.message,
+        failed: true,
+        shortMessage,
+        longMessage,
       };
     }
 
-    return {
-      ...state,
-    };
+    return state;
+  }
+
+  async run(state: State): Promise<State> {
+    debug(`state: ${JSON.stringify(state)}`);
+
+    let { shortMessage, longMessage } = await deployingMarkdown(this.commitSha, this.stage);
+    state.shortMessage = shortMessage;
+    state.longMessage = longMessage;
+
+    await this.updateDeployment(state, 'in_progress');
+
+    // TODO: serverless deploy or serverless remove
+
+    return state;
+  }
+
+  async post(state: State): Promise<State> {
+    debug(`state: ${JSON.stringify(state)}`);
+
+    state.httpApiUrl = await this.httpApiUrl;
+
+    if (!state.failed) {
+      const { longMessage, shortMessage } = await deployedMarkdown(
+        this.commitSha,
+        this.stage,
+        state.httpApiUrl,
+      );
+      state.shortMessage = shortMessage;
+      state.longMessage = longMessage;
+    }
+
+    const status = state.failed ? 'failure' : 'success';
+    state = await this.updateDeployment(state, status);
+
+    return state;
   }
 
   get logsUrl(): Promise<string> {
@@ -220,144 +266,83 @@ export class Action {
     return undefined;
   }
 
-  async createDeployment(): Promise<number | undefined> {
+  async createDeployment(state: State): Promise<State> {
     const octokit = getOctokit(this.token);
-
-    const response = await octokit.rest.repos.createDeployment({
-      ref: context.ref,
-      required_contexts: [],
-      environment: this.stage,
-      transient_environment: !!this.prNumber,
-      auto_merge: false,
-      owner: this.owner,
-      repo: this.repo,
-      task: context.job,
-      payload: {},
-      production_environment: this.stage === 'production',
-    });
-
-    if (typeof response.data === 'number') {
-      return response.data;
-    }
-
-    if ('id' in response.data) {
-      return response.data.id;
-    }
-
-    debug(`Response: ${JSON.stringify(response.data)}`);
-    warn("Unable to create deployment, response didn't contain an ID.");
-
-    return undefined;
-  }
-
-  async createDeployingComment(destroy: boolean): Promise<{ commentId?: number; message: string }> {
-    const message = await deployingMarkdown(this.commitSha, this.stage);
-
-    if (destroy) {
-      debug('Destroying, not adding PR comment.');
-      return { message };
-    }
 
     const { prNumber } = this;
+
     if (!prNumber) {
-      debug('No PR number found, can not add PR comment.');
-      return { message };
+      // TODO creating a deployments for PR branches?
+      const response = await octokit.rest.repos.createDeployment({
+        ref: context.ref,
+        required_contexts: [],
+        environment: this.stage,
+        transient_environment: false,
+        auto_merge: false,
+        owner: this.owner,
+        repo: this.repo,
+        task: context.job,
+        payload: {},
+        production_environment: this.stage === 'production',
+        description: state.shortMessage,
+      });
+
+      if (typeof response.data === 'number') {
+        state.deploymentId = response.data;
+      } else if ('id' in response.data) {
+        state.deploymentId = response.data.id;
+      }
     }
 
-    const octokit = getOctokit(this.token);
+    if (prNumber && state.longMessage) {
+      const response = await octokit.rest.issues.createComment({
+        body: state.longMessage,
+        owner: this.owner,
+        repo: this.repo,
+        issue_number: prNumber,
+      });
 
-    const response = await octokit.rest.issues.createComment({
-      body: message,
-      owner: this.owner,
-      repo: this.repo,
-      issue_number: prNumber,
-    });
+      state.commentId = response.data.id;
+    }
 
-    return { commentId: response.data.id, message };
+    return state;
   }
 
   async updateDeployment(
-    state: RunState,
-    status: 'success' | 'failure' | 'inactive' | 'pending' | 'in_progress',
-  ) {
-    const { deploymentId } = state;
-    if (!deploymentId) {
-      debug('No deploymentId found, skipping deployment update.');
-      return;
-    }
-
+    state: State,
+    status: 'success' | 'failure' | 'in_progress',
+  ): Promise<State> {
     const octokit = getOctokit(this.token);
-    debug(`Updating Deployment: ${deploymentId} with state: ${JSON.stringify(state)}`);
+    const { deploymentId, commentId } = state;
 
-    await octokit.rest.repos.createDeploymentStatus({
-      deployment_id: deploymentId,
-      state: status,
-      environment_url: await this.httpApiUrl,
-      log_url: await this.logsUrl,
-      environment: this.stage,
-      owner: this.owner,
-      repo: this.repo,
-    });
-  }
+    if (deploymentId) {
+      debug(`Updating Deployment: ${deploymentId} with state: ${JSON.stringify(state)}`);
 
-  async updateDeployedComment(
-    state: RunState,
-  ): Promise<{ httpApiUrl: string | undefined; message: string }> {
-    let summaryMessage = state.summaryMessage;
-    let httpApiUrl = await this.httpApiUrl;
-
-    if (!summaryMessage) {
-      debug('No summaryMessage found, generating deployment information message.');
-      summaryMessage = await deployedMarkdown(this.commitSha, state.stage, httpApiUrl);
+      await octokit.rest.repos.createDeploymentStatus({
+        deployment_id: deploymentId,
+        state: status,
+        environment_url: await this.httpApiUrl,
+        log_url: await this.logsUrl,
+        environment: this.stage,
+        owner: this.owner,
+        repo: this.repo,
+        description: state.shortMessage,
+      });
     }
 
-    const { commentId } = state;
+    if (commentId && state.longMessage) {
+      debug(`Updating PR Comment: ${commentId} with state: ${JSON.stringify(state)}`);
 
-    if (!commentId) {
-      // TODO: if comment ID is unknown, just use step summary
-      debug('No commentId found, skipping PR Comment.');
-      return { httpApiUrl, message: summaryMessage };
+      await octokit.rest.issues.updateComment({
+        comment_id: commentId,
+        body: state.longMessage,
+        owner: this.owner,
+        repo: this.repo,
+        issue_number: this.prNumber,
+      });
     }
 
-    if (state.destroy) {
-      debug('Destroying, skipping PR comment.');
-      return { httpApiUrl, message: summaryMessage };
-    }
-
-    const { prNumber } = this;
-    if (!prNumber) {
-      debug('No PR number found, skipping PR comment.');
-      return { httpApiUrl, message: summaryMessage };
-    }
-
-    const octokit = getOctokit(this.token);
-    debug(
-      `Updating PR Comment: ${prNumber} with commentId: ${commentId} and message: ${summaryMessage}`,
-    );
-    await octokit.rest.issues.updateComment({
-      comment_id: commentId,
-      body: summaryMessage,
-      owner: this.owner,
-      repo: this.repo,
-      issue_number: prNumber,
-    });
-
-    return { httpApiUrl, message: summaryMessage };
-  }
-
-  async post(state: RunState): Promise<PostState> {
-    debug(`state: ${JSON.stringify(state)}`);
-
-    const { httpApiUrl, message } = await this.updateDeployedComment(state);
-
-    const status = state.failureMessage ? 'failure' : 'success';
-    await this.updateDeployment(state, status);
-
-    return {
-      ...state,
-      httpApiUrl,
-      summaryMessage: message,
-    };
+    return state;
   }
 
   get serverlessState(): Promise<ServerlessState | undefined> {

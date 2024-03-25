@@ -1,22 +1,16 @@
 import { Action } from './action';
 import { setFailed, notice, saveState, debug } from '@actions/core';
 
-export type PreState = {
-  deploy: boolean;
-  destroy: boolean;
-  stage: string;
-  deploymentId?: number;
-  commentId?: number;
-  summaryMessage?: string;
-  failureMessage?: string;
-};
-
 (async () => {
   try {
     const action = new Action();
-    const preState = await action.pre();
-    debug('preState: ' + JSON.stringify(preState));
-    saveState('preState', JSON.stringify(preState));
+    const state = await action.pre();
+    debug('state: ' + JSON.stringify(state));
+    saveState('state', JSON.stringify(state));
+
+    if (state.failed) {
+      throw new Error(state.shortMessage);
+    }
   } catch (e) {
     if (e instanceof Error) {
       setFailed(e.message);
