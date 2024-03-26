@@ -1,22 +1,24 @@
-import { Action } from './action';
-import { setFailed, notice, saveState, debug } from '@actions/core';
+import { Action, State } from './action';
+import { setFailed, saveState, debug } from '@actions/core';
 
 (async () => {
-  try {
-    const action = new Action();
-    const state = await action.pre();
-    debug('state: ' + JSON.stringify(state));
-    saveState('state', JSON.stringify(state));
+  const action = new Action();
 
-    if (state.failed) {
-      throw new Error(state.shortMessage);
-    }
+  let state: State = {
+    deploy: false,
+    destroy: false,
+  };
+
+  try {
+    state = await action.pre(state);
+    debug('updated state: ' + JSON.stringify(state));
   } catch (e) {
-    if (e instanceof Error) {
-      setFailed(e.message);
-      notice(`Need help? https://scaffoldly.dev/help`);
-      return;
+    if (!(e instanceof Error)) {
+      throw e;
     }
-    throw e;
+    debug(`${e}`);
+    setFailed(e.message);
+  } finally {
+    saveState('state', JSON.stringify(state));
   }
 })();

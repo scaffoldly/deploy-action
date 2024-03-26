@@ -1,4 +1,4 @@
-import { debug, getIDToken, exportVariable, info } from '@actions/core';
+import { debug, getIDToken, exportVariable, info, notice } from '@actions/core';
 import { getInput } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 import { warn } from 'console';
@@ -34,7 +34,7 @@ type ServerlessState = {
 export type State = {
   deploy: boolean;
   destroy: boolean;
-  stage: string;
+  stage?: string;
   httpApiUrl?: string;
   deploymentId?: number;
   commentId?: number;
@@ -44,18 +44,18 @@ export type State = {
 };
 
 export class Action {
-  async pre(): Promise<State> {
-    let state: State = {
-      deploy: false,
-      destroy: false,
-      stage: this.stage,
-    };
+  async pre(state: State): Promise<State> {
+    state.stage = this.stage;
 
-    if (
-      (GITHUB_EVENT_NAME === 'pull_request' && context.payload.action === 'closed') ||
-      (GITHUB_EVENT_NAME === 'workflow_dispatch' &&
-        boolean(context.payload.inputs.destroy) === true)
+    if (GITHUB_EVENT_NAME === 'pull_request' && context.payload.action === 'closed') {
+      notice(`Pull request has been closed. Destroying ${this.stage}...`);
+      state.deploy = false;
+      state.destroy = true;
+    } else if (
+      GITHUB_EVENT_NAME === 'workflow_dispatch' &&
+      boolean(context.payload.inputs.destroy) === true
     ) {
+      notice(`Workflow dispatch triggered with destruction enabled. Destroying ${this.stage}...`);
       state.deploy = false;
       state.destroy = true;
     } else {
@@ -129,6 +129,12 @@ export class Action {
 
   async run(state: State): Promise<State> {
     debug(`state: ${JSON.stringify(state)}`);
+
+    if (state.failed) {
+      debug('state: ' + JSON.stringify(state));
+      notice(`Deployment skipped due to failure...`);
+      return state;
+    }
 
     let { shortMessage, longMessage } = await deployingMarkdown(this.commitSha, this.stage);
     state.shortMessage = shortMessage;

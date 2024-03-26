@@ -17,7 +17,7 @@ export const roleSetupInstructions = async (
   logsUrl: string,
 ): Promise<Message> => {
   const long = await ejs.render(roleSetupMd, { owner, repo, logsUrl }, ejsOptions);
-  const short = `🚨 Unable to Deploy to AWS`;
+  const short = `Unable to Deploy to AWS`;
   return { longMessage: long, shortMessage: short };
 };
 
