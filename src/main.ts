@@ -15,9 +15,15 @@ import { setFailed, saveState, setOutput, getState, debug } from '@actions/core'
     debug(`${e}`);
     setFailed(e.message);
   } finally {
+    if (state.failed && state.shortMessage) {
+      setFailed(state.shortMessage);
+      state.shortMessage = undefined;
+    }
+
     setOutput('stage', state.stage);
     setOutput('deploy', state.deploy.toString());
     setOutput('destroy', state.destroy.toString());
+
     saveState('state', JSON.stringify(state));
   }
 })();

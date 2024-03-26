@@ -19,6 +19,11 @@ import { setFailed, saveState, debug } from '@actions/core';
     debug(`${e}`);
     setFailed(e.message);
   } finally {
+    if (state.failed && state.shortMessage) {
+      setFailed(state.shortMessage);
+      state.shortMessage = undefined;
+    }
+
     saveState('state', JSON.stringify(state));
   }
 })();
