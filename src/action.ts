@@ -1,4 +1,4 @@
-import { debug, getIDToken, exportVariable, info, notice } from '@actions/core';
+import { debug, getIDToken, exportVariable, notice, error } from '@actions/core';
 import { getInput } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 import { warn } from 'console';
@@ -99,14 +99,13 @@ export class Action {
 
       const callerIdentity = await client.send(new GetCallerIdentityCommand({}));
 
-      info(
-        `Assumed ${role}: ${callerIdentity.Arn} (Credential expiration at ${assumeResponse.Credentials?.Expiration})`,
-      );
+      notice(`Deploying as ${callerIdentity.Arn} using ${role}...`);
     } catch (e) {
       if (!(e instanceof Error)) {
         throw e;
       }
-      debug(`Error: ${e}`);
+
+      error(e);
 
       const { shortMessage, longMessage } = await roleSetupInstructions(
         this.owner,
