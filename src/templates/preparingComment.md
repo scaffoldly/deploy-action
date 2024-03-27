@@ -1,4 +1,4 @@
-{%= commitSha %} is being prepared for deployment to `{%= stage %}`...
+### ⏱️ Preparing to deploy `{%= commitSha %}` to `{%= stage %}`
 
 - **Commit:** `{%= commitSha %}`
 - **Stage:** `{%= stage %}`

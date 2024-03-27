@@ -1,7 +1,3 @@
-### 🚨 Unable to Deploy to AWS 🚨
-
-🤔 If you need more information on the failure, please review the [Deploy Logs]({%= logsUrl %}).
-
 Please follow these instructions to ensure the application can deploy to AWS:
 
 1. If you haven't already, create an Identity Provider in AWS IAM for GitHub Actions:
@@ -64,8 +60,10 @@ Please follow these instructions to ensure the application can deploy to AWS:
 
 4. Add the AWS IAM Role ARN to your GitHub Repository Variables:
 
-   - https://github.com/{%= owner %}/{%= repo %}/settings/variables/actions
-   - **Name**: DEPLOYMENT_ROLE
-   - **Value**: `arn:aws:iam::YOUR_ACCOUNT_ID:role/YOUR_ROLE_NAME`
+   - Visit: https://github.com/{%= owner %}/{%= repo %}/settings/variables/actions
+   - **Variable Name**: `DEPLOYMENT_ROLE`
+   - **Variable Value**: `arn:aws:iam::YOUR_ACCOUNT_ID:role/YOUR_ROLE_NAME`
 
-5. Re-run [this action]({%= logsUrl %}). Enable debug logging if you need more information.
+   Be sure to replace `YOUR_ACCOUNT_ID` with your AWS Account ID and `YOUR_ROLE_NAME` with the AWS IAM Role Name.
+
+5. Re-run [this action]({%= logsUrl %}). Enable debug logging if you need more detail.

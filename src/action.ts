@@ -13,10 +13,13 @@ import {
 import {
   deployedMarkdown,
   deployingMarkdown,
+  destroyedMarkdown,
+  failedMarkdown,
   preparingMarkdown,
-  roleSetupInstructions,
+  roleSetupMoreInfo,
 } from './messages';
 import { boolean } from 'boolean';
+import { exec } from './exec';
 
 const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF, GITHUB_RUN_ATTEMPT, GITHUB_EVENT_NAME } =
   process.env;
@@ -41,6 +44,7 @@ export type State = {
   failed?: boolean;
   shortMessage?: string;
   longMessage?: string;
+  deployLog?: string;
 };
 
 export class Action {
@@ -107,18 +111,14 @@ export class Action {
 
       error(e);
 
-      const { shortMessage, longMessage } = await roleSetupInstructions(
-        this.owner,
-        this.repo,
-        await this.logsUrl,
-      );
+      const longMessage = await roleSetupMoreInfo(this.owner, this.repo, await this.logsUrl);
 
       return {
         ...state,
         deploy: false,
         destroy: false,
         failed: true,
-        shortMessage,
+        shortMessage: e.message,
         longMessage,
       };
     }
@@ -141,7 +141,23 @@ export class Action {
 
     await this.updateDeployment(state, 'in_progress');
 
-    // TODO: serverless deploy or serverless remove
+    if (state.destroy) {
+      notice(`Destroying ${this.stage}...`);
+      state.deployLog = await exec([
+        './node_modules/.bin/serverless',
+        'remove',
+        '--stage',
+        this.stage,
+      ]);
+    } else if (state.deploy) {
+      notice(`Deploying ${this.stage}...`);
+      state.deployLog = await exec([
+        './node_modules/.bin/serverless',
+        'deploy',
+        '--stage',
+        this.stage,
+      ]);
+    }
 
     return state;
   }
@@ -150,14 +166,37 @@ export class Action {
     debug(`state: ${JSON.stringify(state)}`);
 
     state.httpApiUrl = await this.httpApiUrl;
+    const logsUrl = await this.logsUrl;
 
     if (!state.failed) {
-      const { longMessage, shortMessage } = await deployedMarkdown(
+      if (state.deploy) {
+        const { longMessage, shortMessage } = await deployedMarkdown(
+          this.commitSha,
+          this.stage,
+          state.httpApiUrl,
+          logsUrl,
+          state.deployLog,
+        );
+        state.shortMessage = shortMessage;
+        state.longMessage = longMessage;
+      } else if (state.destroy) {
+        const { longMessage, shortMessage } = await destroyedMarkdown(
+          this.stage,
+          logsUrl,
+          state.deployLog,
+        );
+        state.shortMessage = shortMessage;
+        state.longMessage = longMessage;
+      }
+    } else {
+      const { longMessage, shortMessage } = await failedMarkdown(
         this.commitSha,
         this.stage,
-        state.httpApiUrl,
+        logsUrl,
+        state.deployLog,
+        state.longMessage,
       );
-      state.shortMessage = shortMessage;
+      state.shortMessage = state.shortMessage || shortMessage;
       state.longMessage = longMessage;
     }
 

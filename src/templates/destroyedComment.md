@@ -1,8 +1,8 @@
-### ✅ Deployed `{%= commitSha %}` to `{%= stage %}`!
+### 💣 Deleted `{%= commitSha %}` from `{%= stage %}`!
 
 - **Commit:** `{%= commitSha %}`
 - **Stage:** `{%= stage %}`
-- **URL:** [{%= httpApiUrl %}]({%= httpApiUrl %})
+- **URL:** _disposed_
 
 {% if (deployLog) { %}
 
