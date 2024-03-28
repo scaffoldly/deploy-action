@@ -35,8 +35,7 @@ type ServerlessState = {
 };
 
 export type State = {
-  deploy: boolean;
-  destroy: boolean;
+  action?: 'deploy' | 'destroy';
   stage?: string;
   httpApiUrl?: string;
   deploymentId?: number;
@@ -44,27 +43,26 @@ export type State = {
   failed?: boolean;
   shortMessage?: string;
   longMessage?: string;
-  deployLog?: string;
 };
 
 export class Action {
   async pre(state: State): Promise<State> {
     state.stage = this.stage;
 
-    if (GITHUB_EVENT_NAME === 'pull_request' && context.payload.action === 'closed') {
+    if (boolean(getInput('destroy') || 'false') === true) {
+      notice(`Destruction enabled. Destroying ${this.stage}...`);
+      state.action = 'destroy';
+    } else if (GITHUB_EVENT_NAME === 'pull_request' && context.payload.action === 'closed') {
       notice(`Pull request has been closed. Destroying ${this.stage}...`);
-      state.deploy = false;
-      state.destroy = true;
+      state.action = 'destroy';
     } else if (
       GITHUB_EVENT_NAME === 'workflow_dispatch' &&
       boolean(context.payload.inputs.destroy) === true
     ) {
       notice(`Workflow dispatch triggered with destruction enabled. Destroying ${this.stage}...`);
-      state.deploy = false;
-      state.destroy = true;
+      state.action = 'destroy';
     } else {
-      state.deploy = true;
-      state.destroy = false;
+      state.action = 'deploy';
     }
 
     const region = getInput('region') || 'us-east-1';
@@ -115,8 +113,7 @@ export class Action {
 
       return {
         ...state,
-        deploy: false,
-        destroy: false,
+        action: undefined,
         failed: true,
         shortMessage: e.message,
         longMessage,
@@ -135,9 +132,17 @@ export class Action {
       return state;
     }
 
-    let { shortMessage, longMessage } = await deployingMarkdown(this.commitSha, this.stage);
-    state.shortMessage = shortMessage;
-    state.longMessage = longMessage;
+    if (state.action === 'deploy') {
+      let { shortMessage, longMessage } = await deployingMarkdown(this.commitSha, this.stage);
+      state.shortMessage = shortMessage;
+      state.longMessage = longMessage;
+    }
+
+    if (state.action === 'destroy') {
+      let { shortMessage, longMessage } = await destroyedMarkdown(this.commitSha, this.stage);
+      state.shortMessage = shortMessage;
+      state.longMessage = longMessage;
+    }
 
     await this.updateDeployment(state, 'in_progress');
 
@@ -148,22 +153,14 @@ export class Action {
     }
     // TODO: Add support for other CLI tools
 
-    if (state.destroy) {
+    if (state.action === 'destroy') {
       notice(`Destroying ${this.stage}...`);
-      state.deployLog = await exec([
-        './node_modules/.bin/serverless',
-        'remove',
-        '--stage',
-        this.stage,
-      ]);
-    } else if (state.deploy) {
+      await exec(['./node_modules/.bin/serverless', 'remove', '--stage', this.stage]);
+    }
+
+    if (state.action === 'deploy') {
       notice(`Deploying ${this.stage}...`);
-      state.deployLog = await exec([
-        './node_modules/.bin/serverless',
-        'deploy',
-        '--stage',
-        this.stage,
-      ]);
+      await exec(['./node_modules/.bin/serverless', 'deploy', '--stage', this.stage]);
     }
 
     return state;
@@ -176,21 +173,20 @@ export class Action {
     const logsUrl = await this.logsUrl;
 
     if (!state.failed) {
-      if (state.deploy) {
+      if (state.action === 'deploy') {
         const { longMessage, shortMessage } = await deployedMarkdown(
           this.commitSha,
           this.stage,
           state.httpApiUrl,
           logsUrl,
-          state.deployLog,
         );
         state.shortMessage = shortMessage;
         state.longMessage = longMessage;
-      } else if (state.destroy) {
+      } else if (state.action === 'destroy') {
         const { longMessage, shortMessage } = await destroyedMarkdown(
+          this.commitSha,
           this.stage,
           logsUrl,
-          state.deployLog,
         );
         state.shortMessage = shortMessage;
         state.longMessage = longMessage;
@@ -200,14 +196,13 @@ export class Action {
         this.commitSha,
         this.stage,
         logsUrl,
-        state.deployLog,
         state.longMessage,
       );
       state.shortMessage = state.shortMessage || shortMessage;
       state.longMessage = longMessage;
     }
 
-    const status = state.failed ? 'failure' : 'success';
+    const status = state.failed ? 'failure' : state.action === 'destroy' ? 'inactive' : 'success';
     state = await this.updateDeployment(state, status);
 
     return state;
@@ -322,28 +317,28 @@ export class Action {
 
     const { prNumber } = this;
 
-    if (!prNumber) {
-      // TODO creating a deployments for PR branches?
-      const response = await octokit.rest.repos.createDeployment({
-        ref: context.ref,
-        required_contexts: [],
-        environment: this.stage,
-        transient_environment: false,
-        auto_merge: false,
-        owner: this.owner,
-        repo: this.repo,
-        task: context.job,
-        payload: {},
-        production_environment: this.stage === 'production',
-        description: state.shortMessage,
-      });
+    // if (!prNumber) {
+    // TODO creating a deployments for PR branches?
+    const response = await octokit.rest.repos.createDeployment({
+      ref: context.ref,
+      required_contexts: [],
+      environment: this.stage,
+      transient_environment: !!this.prNumber,
+      auto_merge: false,
+      owner: this.owner,
+      repo: this.repo,
+      task: context.job,
+      payload: {},
+      production_environment: this.stage === 'production',
+      description: state.shortMessage,
+    });
 
-      if (typeof response.data === 'number') {
-        state.deploymentId = response.data;
-      } else if ('id' in response.data) {
-        state.deploymentId = response.data.id;
-      }
+    if (typeof response.data === 'number') {
+      state.deploymentId = response.data;
+    } else if ('id' in response.data) {
+      state.deploymentId = response.data.id;
     }
+    // }
 
     if (prNumber && state.longMessage) {
       const response = await octokit.rest.issues.createComment({
@@ -361,7 +356,7 @@ export class Action {
 
   async updateDeployment(
     state: State,
-    status: 'success' | 'failure' | 'in_progress',
+    status: 'success' | 'failure' | 'in_progress' | 'inactive',
   ): Promise<State> {
     const octokit = getOctokit(this.token);
     const { deploymentId, commentId } = state;
@@ -378,6 +373,7 @@ export class Action {
         owner: this.owner,
         repo: this.repo,
         description: state.shortMessage,
+        auto_inactive: false,
       });
     }
 

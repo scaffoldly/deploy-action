@@ -1,18 +1,5 @@
-### 🚀 Deploying `{%= commitSha %}` to `{%= stage %}`...
+### 🚀 Deploying `{%= stage %}`...
 
+- **CI/CD Logs:** [{%= logsUrl %}]({%= logsUrl %})
 - **Commit:** `{%= commitSha %}`
 - **Stage:** `{%= stage %}`
-- **URL:** _pending_
-
-{% if (logsUrl) { %}
-
-<details>
-<summary>[Deploy Log]({%= logsUrl %})</summary>
-
-```
-Logs will appear here once the GitHub Action finishes.
-```
-
-</details>
-
-{% } %}

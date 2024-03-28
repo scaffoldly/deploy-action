@@ -21,8 +21,8 @@ import { setFailed, saveState, setOutput, getState, debug } from '@actions/core'
     }
 
     setOutput('stage', state.stage);
-    setOutput('deploy', state.deploy.toString());
-    setOutput('destroy', state.destroy.toString());
+    setOutput('deployed', state.action === 'deploy');
+    setOutput('destroyed', state.action === 'destroy');
 
     saveState('state', JSON.stringify(state));
   }

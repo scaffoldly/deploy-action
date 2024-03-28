@@ -1,18 +1,6 @@
-### ✅ Deployed `{%= commitSha %}` to `{%= stage %}`!
+### ✅ Deployed `{%= stage %}`!
 
+- **CI/CD Logs:** [{%= logsUrl %}]({%= logsUrl %})
 - **Commit:** `{%= commitSha %}`
 - **Stage:** `{%= stage %}`
 - **URL:** [{%= httpApiUrl %}]({%= httpApiUrl %})
-
-{% if (deployLog) { %}
-
-<details>
-<summary>[Deploy Log]({%= logsUrl %})</summary>
-
-```
-{%= deployLog %}
-```
-
-</details>
-
-{% } %}

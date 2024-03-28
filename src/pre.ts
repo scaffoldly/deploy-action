@@ -4,10 +4,7 @@ import { setFailed, saveState, debug } from '@actions/core';
 (async () => {
   const action = new Action();
 
-  let state: State = {
-    deploy: false,
-    destroy: false,
-  };
+  let state: State = {};
 
   try {
     state = await action.pre(state);

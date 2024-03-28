@@ -6,7 +6,7 @@ Please follow these instructions to ensure the application can deploy to AWS:
    - For the **Provider URL**: `https://token.actions.githubusercontent.com`
    - For the **Audience**: `sts.amazonaws.com`
 
-2. Create or update a role in AWS IAM with the following trust relationship:
+2. Create or update a role in AWS IAM with the following **Trust Policy**:
 
    ```
    {
@@ -19,7 +19,7 @@ Please follow these instructions to ensure the application can deploy to AWS:
          },
          "Action": "sts:AssumeRoleWithWebIdentity",
          "Condition": {
-           "StringEquals": {
+           "StringLike": {
              "token.actions.githubusercontent.com:sub": "repo:{%= owner %}/{%= repo %}:*"
            }
          }

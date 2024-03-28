@@ -1,18 +1,5 @@
-### 💣 Deleted `{%= commitSha %}` from `{%= stage %}`!
+### 💣 Deleted `{%= stage %}`
 
+- **CI/CD Logs:** [{%= logsUrl %}]({%= logsUrl %})
 - **Commit:** `{%= commitSha %}`
 - **Stage:** `{%= stage %}`
-- **URL:** _disposed_
-
-{% if (deployLog) { %}
-
-<details>
-<summary>[Deploy Log]({%= logsUrl %})</summary>
-
-```
-{%= deployLog %}
-```
-
-</details>
-
-{% } %}

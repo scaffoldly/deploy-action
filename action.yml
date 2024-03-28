@@ -18,15 +18,19 @@ inputs:
   cli:
     description: 'The CLI to use for deployment'
     required: true
+  destroy:
+    description: 'If the stack should be destroyed'
+    required: false
+    default: false
 outputs:
   httpApiUri:
     description: 'The URL of the deployed HTTP API'
   stage:
     description: The inferred stage from the branch or PR name
-  deploy:
-    description: If the serverless stack should be deployed, defaults to true. False when a pull request is closed.
-  destroy:
-    description: If the serverless stack should be destroyed, defaults to false. True when a pull request is closed.
+  deployed:
+    description: If the stack was deployed.
+  destroyed:
+    description: If the stack was destroyed.
 runs:
   using: 'node20'
   pre: 'dist/pre.js'
