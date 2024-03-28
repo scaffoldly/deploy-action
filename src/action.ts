@@ -137,14 +137,24 @@ export class Action {
       return state;
     }
 
+    const logsUrl = await this.logsUrl;
+
     if (state.action === 'deploy') {
-      let { shortMessage, longMessage } = await deployingMarkdown(this.commitSha, this.stage);
+      let { shortMessage, longMessage } = await deployingMarkdown(
+        this.commitSha,
+        this.stage,
+        logsUrl,
+      );
       state.shortMessage = shortMessage;
       state.longMessage = longMessage;
     }
 
     if (state.action === 'destroy') {
-      let { shortMessage, longMessage } = await destroyedMarkdown(this.commitSha, this.stage);
+      let { shortMessage, longMessage } = await destroyedMarkdown(
+        this.commitSha,
+        this.stage,
+        logsUrl,
+      );
       state.shortMessage = shortMessage;
       state.longMessage = longMessage;
     }
@@ -322,28 +332,30 @@ export class Action {
 
     const { prNumber } = this;
 
-    // if (!prNumber) {
-    // TODO creating a deployments for PR branches?
-    const response = await octokit.rest.repos.createDeployment({
-      ref: context.ref,
-      required_contexts: [],
-      environment: this.stage,
-      transient_environment: !!this.prNumber,
-      auto_merge: false,
-      owner: this.owner,
-      repo: this.repo,
-      task: context.job,
-      payload: {},
-      production_environment: this.stage === 'production',
-      description: state.shortMessage,
-    });
+    let ref = context.ref.split('/').pop();
 
-    if (typeof response.data === 'number') {
-      state.deploymentId = response.data;
-    } else if ('id' in response.data) {
-      state.deploymentId = response.data.id;
+    if (ref) {
+      // TODO creating a deployments for PR branches?
+      const response = await octokit.rest.repos.createDeployment({
+        ref,
+        required_contexts: [],
+        environment: this.stage,
+        transient_environment: !!this.prNumber,
+        auto_merge: false,
+        owner: this.owner,
+        repo: this.repo,
+        task: context.job,
+        payload: {},
+        production_environment: this.stage === 'production',
+        description: state.shortMessage,
+      });
+
+      if (typeof response.data === 'number') {
+        state.deploymentId = response.data;
+      } else if ('id' in response.data) {
+        state.deploymentId = response.data.id;
+      }
     }
-    // }
 
     if (prNumber && state.longMessage) {
       const response = await octokit.rest.issues.createComment({
