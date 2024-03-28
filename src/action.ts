@@ -336,28 +336,24 @@ export class Action {
 
     const { prNumber } = this;
 
-    const ref = context.ref.split('/').pop();
+    const response = await octokit.rest.repos.createDeployment({
+      ref: this.commitSha,
+      required_contexts: [],
+      environment: this.stage,
+      transient_environment: !!this.prNumber,
+      auto_merge: false,
+      owner: this.owner,
+      repo: this.repo,
+      task: context.job,
+      payload: {},
+      production_environment: this.stage === 'production',
+      description: state.shortMessage,
+    });
 
-    if (ref) {
-      const response = await octokit.rest.repos.createDeployment({
-        ref,
-        required_contexts: [],
-        environment: this.stage,
-        transient_environment: !!this.prNumber,
-        auto_merge: false,
-        owner: this.owner,
-        repo: this.repo,
-        task: context.job,
-        payload: {},
-        production_environment: this.stage === 'production',
-        description: state.shortMessage,
-      });
-
-      if (typeof response.data === 'number') {
-        state.deploymentId = response.data;
-      } else if ('id' in response.data) {
-        state.deploymentId = response.data.id;
-      }
+    if (typeof response.data === 'number') {
+      state.deploymentId = response.data;
+    } else if ('id' in response.data) {
+      state.deploymentId = response.data.id;
     }
 
     if (prNumber && state.longMessage) {
