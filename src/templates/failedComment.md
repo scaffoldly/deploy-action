@@ -6,7 +6,7 @@
 
 <details open>
 <summary>Additional Information</summary>
-{%= moreInfo %}
+{%- moreInfo %}
 </details>
 
 {% } %}
