@@ -22,8 +22,12 @@ export const roleSetupMoreInfo = async (
   return ejs.render(roleSetupMd, { owner, repo, logsUrl }, ejsOptions);
 };
 
-export const preparingMarkdown = async (commitSha: string, stage: string): Promise<Message> => {
-  const long = await ejs.render(preparingCommentMd, { commitSha, stage }, ejsOptions);
+export const preparingMarkdown = async (
+  commitSha: string,
+  stage: string,
+  logsUrl?: string,
+): Promise<Message> => {
+  const long = await ejs.render(preparingCommentMd, { commitSha, stage, logsUrl }, ejsOptions);
   const short = `Preparing stage ${stage}`;
   return { longMessage: long, shortMessage: short };
 };

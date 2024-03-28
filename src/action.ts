@@ -68,8 +68,13 @@ export class Action {
     const region = getInput('region') || 'us-east-1';
     const role = getInput('role');
     const idToken = await this.idToken;
+    const logsUrl = await this.logsUrl;
 
-    const { shortMessage, longMessage } = await preparingMarkdown(this.commitSha, this.stage);
+    const { shortMessage, longMessage } = await preparingMarkdown(
+      this.commitSha,
+      this.stage,
+      logsUrl,
+    );
     state.shortMessage = shortMessage;
     state.longMessage = longMessage;
 
