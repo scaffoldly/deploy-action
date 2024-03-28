@@ -141,6 +141,13 @@ export class Action {
 
     await this.updateDeployment(state, 'in_progress');
 
+    const cli = getInput('cli') || undefined;
+
+    if (cli !== 'serverless') {
+      throw new Error(`Unsupported with.cli option: ${cli}`);
+    }
+    // TODO: Add support for other CLI tools
+
     if (state.destroy) {
       notice(`Destroying ${this.stage}...`);
       state.deployLog = await exec([

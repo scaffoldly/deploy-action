@@ -15,6 +15,9 @@ inputs:
   role:
     description: 'The AWS Role to use for deployment'
     required: true
+  cli:
+    description: 'The CLI to use for deployment'
+    required: true
 outputs:
   httpApiUri:
     description: 'The URL of the deployed HTTP API'
