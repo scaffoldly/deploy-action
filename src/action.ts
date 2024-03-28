@@ -374,6 +374,8 @@ export class Action {
     state: State,
     status: 'success' | 'failure' | 'in_progress' | 'inactive',
   ): Promise<State> {
+    debug(`Updating Deployment: ${JSON.stringify(state)} with status: ${status}`);
+
     const octokit = getOctokit(this.token);
     const { deploymentId, commentId } = state;
 
@@ -389,7 +391,6 @@ export class Action {
         owner: this.owner,
         repo: this.repo,
         description: state.shortMessage,
-        auto_inactive: false,
       });
     }
 
