@@ -14,6 +14,7 @@ import {
   deployedMarkdown,
   deployingMarkdown,
   destroyedMarkdown,
+  destroyingMarkdown,
   failedMarkdown,
   preparingMarkdown,
   roleSetupMoreInfo,
@@ -150,7 +151,7 @@ export class Action {
     }
 
     if (state.action === 'destroy') {
-      let { shortMessage, longMessage } = await destroyedMarkdown(
+      let { shortMessage, longMessage } = await destroyingMarkdown(
         this.commitSha,
         this.stage,
         logsUrl,
