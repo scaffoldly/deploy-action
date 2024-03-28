@@ -315,7 +315,11 @@ export class Action {
 
   get commitSha(): string {
     if (context.eventName === 'pull_request') {
-      return `${context.payload.pull_request?.head.sha}`.substring(0, 7);
+      const pullRequest = context.payload.pull_request;
+      if (!pullRequest || !pullRequest.head || !pullRequest.head.sha) {
+        throw new Error('Unable to determine PR commit SHA');
+      }
+      return pullRequest.head.sha.substring(0, 7);
     }
     return context.sha.substring(0, 7);
   }
@@ -332,10 +336,9 @@ export class Action {
 
     const { prNumber } = this;
 
-    let ref = context.ref.split('/').pop();
+    const ref = context.ref.split('/').pop();
 
     if (ref) {
-      // TODO creating a deployments for PR branches?
       const response = await octokit.rest.repos.createDeployment({
         ref,
         required_contexts: [],
