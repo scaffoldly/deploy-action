@@ -1,4 +1,4 @@
-import { debug, getIDToken, exportVariable, notice, error } from '@actions/core';
+import { debug, getIDToken, exportVariable, notice, error, info } from '@actions/core';
 import { getInput } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 import { warn } from 'console';
@@ -375,13 +375,11 @@ export class Action {
     state: State,
     status: 'success' | 'failure' | 'in_progress' | 'inactive',
   ): Promise<State> {
-    debug(`Updating Deployment: ${JSON.stringify(state)} with status: ${status}`);
-
     const octokit = getOctokit(this.token);
     const { deploymentId, commentId } = state;
 
     if (deploymentId) {
-      debug(`Updating Deployment: ${deploymentId} with state: ${JSON.stringify(state)}`);
+      info(`Updating deployment ${state.deploymentId} with status: ${status}`);
 
       await octokit.rest.repos.createDeploymentStatus({
         deployment_id: deploymentId,
@@ -396,7 +394,7 @@ export class Action {
     }
 
     if (commentId && state.longMessage) {
-      debug(`Updating PR Comment: ${commentId} with state: ${JSON.stringify(state)}`);
+      info(`Updating PR comment ${commentId}`);
 
       await octokit.rest.issues.updateComment({
         comment_id: commentId,
