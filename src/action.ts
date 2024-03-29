@@ -448,6 +448,7 @@ export class Action {
     // If state is inactive:
     // - Mark all deployments as inactive
     // - If its a PR:
+    //    - Delete the deployment
     //    - Delete the environment
     if (status === 'inactive') {
       const deployments = await octokit.paginate(octokit.rest.repos.listDeployments, {
@@ -500,6 +501,21 @@ export class Action {
             }
           }),
         );
+
+        try {
+          await octokit.rest.repos.deleteAnEnvironment({
+            environment_name: this.stage,
+            owner: this.owner,
+            repo: this.repo,
+          });
+          notice(`Deleted environment ${this.stage}`);
+        } catch (e) {
+          if (!(e instanceof Error)) {
+            throw e;
+          }
+
+          warn(`Unable to delete environment ${this.stage}: ${e.message}`);
+        }
       }
     }
 
