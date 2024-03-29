@@ -332,29 +332,68 @@ export class Action {
     return undefined;
   }
 
+  get isPr(): boolean {
+    if (!GITHUB_REF) {
+      throw new Error('Unable to determine Pull Request from GITHUB_REF');
+    }
+    return GITHUB_REF.endsWith('/merge');
+  }
+
+  get branchName(): string {
+    if (!GITHUB_REF) {
+      throw new Error('Unable to determine branch from GITHUB_REF');
+    }
+
+    if (GITHUB_REF.endsWith('/merge')) {
+      if (!GITHUB_BASE_REF) {
+        throw new Error('Unable to determine branchfrom GITHUB_BASE_REF');
+      }
+      return GITHUB_BASE_REF.replace('refs/heads/', '') || '';
+    }
+
+    if (GITHUB_REF.startsWith('refs/tags/')) {
+      return GITHUB_REF.replace('refs/tags/', '') || '';
+    }
+
+    if (GITHUB_REF.startsWith('refs/heads/')) {
+      return GITHUB_REF.replace('refs/heads/', '') || '';
+    }
+
+    throw new Error('Unable to determine branch from GITHUB_REF');
+  }
+
   async createDeployment(state: State): Promise<State> {
     const octokit = getOctokit(this.token);
 
     const { prNumber } = this;
 
-    const response = await octokit.rest.repos.createDeployment({
-      ref: this.commitSha,
-      required_contexts: [],
-      environment: this.stage,
-      transient_environment: !!this.prNumber,
-      auto_merge: false,
-      owner: this.owner,
-      repo: this.repo,
-      task: context.job,
-      payload: {},
-      production_environment: this.stage === 'production',
-      description: state.shortMessage,
-    });
+    try {
+      const response = await octokit.rest.repos.createDeployment({
+        ref: this.branchName,
+        required_contexts: [],
+        environment: this.stage,
+        transient_environment: this.isPr,
+        auto_merge: false,
+        owner: this.owner,
+        repo: this.repo,
+        task: context.job,
+        payload: {},
+        production_environment: this.stage === 'production',
+        description: state.shortMessage,
+      });
 
-    if (typeof response.data === 'number') {
-      state.deploymentId = response.data;
-    } else if ('id' in response.data) {
-      state.deploymentId = response.data.id;
+      if (typeof response.data === 'number') {
+        state.deploymentId = response.data;
+      } else if ('id' in response.data) {
+        state.deploymentId = response.data.id;
+      }
+    } catch (e) {
+      if (!(e instanceof Error)) {
+        throw e;
+      }
+
+      warn(`Unable to create deployment: ${e.message}`);
+      state.deploymentId = undefined;
     }
 
     if (prNumber && state.longMessage) {
@@ -379,18 +418,79 @@ export class Action {
     const { deploymentId, commentId } = state;
 
     if (deploymentId) {
-      info(`Updating deployment ${state.deploymentId} with status: ${status}`);
+      try {
+        await octokit.rest.repos.createDeploymentStatus({
+          deployment_id: deploymentId,
+          state: status,
+          environment_url: await this.httpApiUrl,
+          log_url: await this.logsUrl,
+          environment: this.stage,
+          owner: this.owner,
+          repo: this.repo,
+          description: state.shortMessage,
+        });
+        notice(`Updated deployment for ${this.stage} to ${status}`);
+      } catch (e) {
+        if (!(e instanceof Error)) {
+          throw e;
+        }
 
-      await octokit.rest.repos.createDeploymentStatus({
-        deployment_id: deploymentId,
-        state: status,
-        environment_url: await this.httpApiUrl,
-        log_url: await this.logsUrl,
-        environment: this.stage,
+        warn(`Unable to update deployment ${deploymentId}: ${e.message}`);
+      }
+    }
+
+    // If state is inactive:
+    // - Mark all deployments as inactive
+    // - If its a PR:
+    //    - Delete the environment
+    if (status === 'inactive') {
+      const deployments = await octokit.paginate(octokit.rest.repos.listDeployments, {
         owner: this.owner,
         repo: this.repo,
-        description: state.shortMessage,
+        environment: this.stage,
       });
+
+      await Promise.all(
+        deployments.map(async (deployment) => {
+          if (deployment.id === deploymentId) {
+            return;
+          }
+
+          try {
+            debug(`Deactivating deployment ${deployment.id}`);
+            await octokit.rest.repos.createDeploymentStatus({
+              deployment_id: deployment.id,
+              state: 'inactive',
+              environment: this.stage,
+              owner: this.owner,
+              repo: this.repo,
+            });
+          } catch (e) {
+            if (!(e instanceof Error)) {
+              throw e;
+            }
+
+            warn(`Unable to deactivate deployment ${deployment.id}: ${e.message}`);
+          }
+        }),
+      );
+
+      if (this.isPr) {
+        try {
+          await octokit.rest.repos.deleteAnEnvironment({
+            owner: this.owner,
+            repo: this.repo,
+            environment_name: this.stage,
+          });
+          notice(`Deleted environment ${this.stage}`);
+        } catch (e) {
+          if (!(e instanceof Error)) {
+            throw e;
+          }
+
+          warn(`Unable to delete environment ${this.stage}: ${e.message}`);
+        }
+      }
     }
 
     if (commentId && state.longMessage) {
