@@ -90,7 +90,9 @@ export class Action {
 
     try {
       if (!role || !role.trim()) {
-        throw new Error(`Unknown or missing role: ${role}`);
+        throw new Error(
+          `Unknown or missing role. Please make sure DEPLOYMENT_ROLE is set in GitHub Actions Variables.`,
+        );
       }
 
       let client = new STSClient({ region });
