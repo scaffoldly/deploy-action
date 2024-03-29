@@ -177,12 +177,12 @@ export class Action {
 
     if (state.action === 'destroy') {
       notice(`Destroying ${this.stage}...`);
-      await exec(['./node_modules/.bin/serverless', 'remove', '--stage', this.stage]);
+      await exec(['./node_modules/.bin/serverless', 'remove', '--verbose', '--stage', this.stage]);
     }
 
     if (state.action === 'deploy') {
       notice(`Deploying ${this.stage}...`);
-      await exec(['./node_modules/.bin/serverless', 'deploy', '--stage', this.stage]);
+      await exec(['./node_modules/.bin/serverless', 'deploy', '--verbose', '--stage', this.stage]);
     }
 
     return state;
