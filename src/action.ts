@@ -75,10 +75,6 @@ export class Action {
     const region = getInput('region') || 'us-east-1';
     const role = getInput('role');
 
-    if (!role || !role.trim()) {
-      throw new Error(`Unknown or missing role: ${role}`);
-    }
-
     const idToken = await this.idToken;
     const logsUrl = await this.logsUrl;
 
@@ -93,6 +89,10 @@ export class Action {
     state = await this.createDeployment(state);
 
     try {
+      if (!role || !role.trim()) {
+        throw new Error(`Unknown or missing role: ${role}`);
+      }
+
       let client = new STSClient({ region });
       const assumeResponse = await client.send(
         new AssumeRoleWithWebIdentityCommand({
