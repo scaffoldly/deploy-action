@@ -482,20 +482,24 @@ export class Action {
       );
 
       if (this.isPr) {
-        try {
-          await octokit.rest.repos.deleteAnEnvironment({
-            owner: this.owner,
-            repo: this.repo,
-            environment_name: this.stage,
-          });
-          notice(`Deleted environment ${this.stage}`);
-        } catch (e) {
-          if (!(e instanceof Error)) {
-            throw e;
-          }
+        await Promise.all(
+          deployments.map(async (deployment) => {
+            try {
+              debug(`Deleting deployment ${deployment.id}`);
+              await octokit.rest.repos.deleteDeployment({
+                deployment_id: deployment.id,
+                owner: this.owner,
+                repo: this.repo,
+              });
+            } catch (e) {
+              if (!(e instanceof Error)) {
+                throw e;
+              }
 
-          warn(`Unable to delete environment ${this.stage}: ${e.message}`);
-        }
+              warn(`Unable to delete deployment ${deployment.id}: ${e.message}`);
+            }
+          }),
+        );
       }
     }
 
