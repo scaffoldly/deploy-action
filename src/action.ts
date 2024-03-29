@@ -22,8 +22,14 @@ import {
 import { boolean } from 'boolean';
 import { exec } from './exec';
 
-const { GITHUB_REPOSITORY, GITHUB_REF, GITHUB_BASE_REF, GITHUB_RUN_ATTEMPT, GITHUB_EVENT_NAME } =
-  process.env;
+const {
+  GITHUB_REPOSITORY,
+  GITHUB_REF,
+  GITHUB_BASE_REF,
+  GITHUB_HEAD_REF,
+  GITHUB_RUN_ATTEMPT,
+  GITHUB_EVENT_NAME,
+} = process.env;
 
 type ServerlessState = {
   service: {
@@ -345,18 +351,18 @@ export class Action {
     }
 
     if (GITHUB_REF.endsWith('/merge')) {
-      if (!GITHUB_BASE_REF) {
-        throw new Error('Unable to determine branchfrom GITHUB_BASE_REF');
+      if (!GITHUB_HEAD_REF) {
+        throw new Error('Unable to determine branch from GITHUB_HEAD_REF');
       }
-      return GITHUB_BASE_REF.replace('refs/heads/', '') || '';
+      return GITHUB_HEAD_REF.replace('refs/heads/', '');
     }
 
     if (GITHUB_REF.startsWith('refs/tags/')) {
-      return GITHUB_REF.replace('refs/tags/', '') || '';
+      return GITHUB_REF.replace('refs/tags/', '');
     }
 
     if (GITHUB_REF.startsWith('refs/heads/')) {
-      return GITHUB_REF.replace('refs/heads/', '') || '';
+      return GITHUB_REF.replace('refs/heads/', '');
     }
 
     throw new Error('Unable to determine branch from GITHUB_REF');
