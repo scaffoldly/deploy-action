@@ -64,7 +64,7 @@ export class Action {
       state.action = 'destroy';
     } else if (
       GITHUB_EVENT_NAME === 'workflow_dispatch' &&
-      boolean(context.payload.inputs.destroy) === true
+      boolean(this.workflowInputs.destroy) === true
     ) {
       notice(`Workflow dispatch triggered with destruction enabled. Destroying ${this.stage}...`);
       state.action = 'destroy';
@@ -345,7 +345,11 @@ export class Action {
     return GITHUB_REF.endsWith('/merge');
   }
 
-  get branchName(): string {
+  get workflowInputs(): { [key: string]: string } {
+    return context.payload.inputs || {};
+  }
+
+  get deploymentRef(): string {
     if (!GITHUB_REF) {
       throw new Error('Unable to determine branch from GITHUB_REF');
     }
@@ -375,7 +379,7 @@ export class Action {
 
     try {
       const response = await octokit.rest.repos.createDeployment({
-        ref: this.branchName,
+        ref: this.deploymentRef,
         required_contexts: [],
         environment: this.stage,
         transient_environment: this.isPr,
