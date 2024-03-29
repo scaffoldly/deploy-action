@@ -74,6 +74,11 @@ export class Action {
 
     const region = getInput('region') || 'us-east-1';
     const role = getInput('role');
+
+    if (!role || !role.trim()) {
+      throw new Error(`Unknown or missing role: ${role}`);
+    }
+
     const idToken = await this.idToken;
     const logsUrl = await this.logsUrl;
 
