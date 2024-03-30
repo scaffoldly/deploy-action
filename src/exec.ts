@@ -1,6 +1,5 @@
-import { info } from '@actions/core';
+import { info, debug, error, setFailed } from '@actions/core';
 import proc from 'child_process';
-import { debug, error } from 'console';
 import { Transform } from 'stream';
 import which from 'which';
 
@@ -60,8 +59,12 @@ export const exec = (argv: string[]): Promise<string> => {
       reject(err);
     });
 
-    p.on('exit', () => {
-      debug('Command exited');
+    p.on('exit', (code) => {
+      debug(`${command} exited with code ${code}`);
+      if (code && code !== 0) {
+        reject(new Error(`${command} exited with code ${code}`));
+        return;
+      }
       resolve(capture.toString());
     });
 
