@@ -1,4 +1,4 @@
-import { info, debug, error, setFailed } from '@actions/core';
+import { info, debug, error } from '@actions/core';
 import proc from 'child_process';
 import { Transform } from 'stream';
 import which from 'which';
@@ -13,6 +13,7 @@ export class Capture {
 
     return new Transform({
       transform(chunk, _encoding, callback) {
+        // TODO: make this work
         // Capture the chunk
         chunks.push(chunk);
         // Pass the data through unchanged
