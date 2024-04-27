@@ -1,5 +1,5 @@
 import { debug, getIDToken, exportVariable, notice, error } from '@actions/core';
-import * as core from '@actions/core';
+// import * as core from '@actions/core';
 import { getInput } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 import { warn } from 'console';
