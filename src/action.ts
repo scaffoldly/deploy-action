@@ -278,23 +278,24 @@ export class Action {
     debug(`GITHUB_REF: ${GITHUB_REF}`);
     debug(`GITHUB_BASE_REF: ${GITHUB_BASE_REF}`);
     debug(`GITHUB_HEAD_REF: ${GITHUB_HEAD_REF}`);
-    debug(`Is PR: ${this.isPr}`);
     debug(`Branch Type: ${branchType}`);
     debug(`Branch ID: ${branchId}`);
+    debug(`PR Number: ${this.prNumber}`);
 
     if (!branchId) {
-      debug(`GITHUB_REF: ${GITHUB_REF}`);
-      debug(`branchType: ${branchType}`);
-      debug(`branchId: ${branchId}`);
       throw new Error('Unable to determine branch from GITHUB_REF');
     }
 
     let deploymentStage = branchId;
-    if (branchType === 'pull') {
+    if (this.prNumber) {
       if (!GITHUB_BASE_REF) {
         throw new Error('Unable to determine base ref from GITHUB_BASE_REF');
       }
-      deploymentStage = `${GITHUB_BASE_REF.replaceAll('/', '-')}-pr-${branchId}`;
+
+      const normalizedBaseRef = GITHUB_BASE_REF.replaceAll('/', '-');
+      debug('Normalized Base Ref: ' + normalizedBaseRef);
+
+      deploymentStage = `${normalizedBaseRef}-pr-${this.prNumber}`;
     }
 
     return deploymentStage;
@@ -349,16 +350,12 @@ export class Action {
 
   get prNumber(): number | undefined {
     if (context.eventName === 'pull_request') {
+      if (!context.payload.pull_request || !context.payload.pull_request.number) {
+        throw new Error('Unable to determine PR number');
+      }
       return context.payload.pull_request?.number;
     }
     return undefined;
-  }
-
-  get isPr(): boolean {
-    if (!GITHUB_REF) {
-      throw new Error('Unable to determine Pull Request from GITHUB_REF');
-    }
-    return GITHUB_REF.endsWith('/merge');
   }
 
   get workflowInputs(): { [key: string]: string } {
@@ -398,7 +395,7 @@ export class Action {
         ref: this.deploymentRef,
         required_contexts: [],
         environment: this.stage,
-        transient_environment: this.isPr,
+        transient_environment: !!this.prNumber,
         auto_merge: false,
         owner: this.owner,
         repo: this.repo,
@@ -502,7 +499,7 @@ export class Action {
         }),
       );
 
-      if (this.isPr) {
+      if (this.prNumber) {
         await Promise.all(
           deployments.map(async (deployment) => {
             try {
