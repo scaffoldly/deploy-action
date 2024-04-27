@@ -55,8 +55,6 @@ export type State = {
 
 export class Action {
   async pre(state: State): Promise<State> {
-    console.log('!!! env', JSON.stringify(process.env, null, 2));
-    console.log('!!! payload', JSON.stringify(context.payload, null, 2));
     state.stage = this.stage;
 
     if (boolean(getInput('destroy') || 'false') === true) {
@@ -274,27 +272,21 @@ export class Action {
   }
 
   get stage(): string {
-    const [, branchType, branchId] = GITHUB_REF?.split('/') || [];
-    debug(`GITHUB_REF: ${GITHUB_REF}`);
-    debug(`GITHUB_BASE_REF: ${GITHUB_BASE_REF}`);
-    debug(`GITHUB_HEAD_REF: ${GITHUB_HEAD_REF}`);
-    debug(`Branch Type: ${branchType}`);
-    debug(`Branch ID: ${branchId}`);
-    debug(`PR Number: ${this.prNumber}`);
+    const branchName = GITHUB_REF?.split('/').slice(2).join('/') || '';
+    debug(`Branch Name: ${branchName}`);
 
-    if (!branchId) {
+    if (!branchName) {
       throw new Error('Unable to determine branch from GITHUB_REF');
     }
 
-    let deploymentStage = branchId;
+    let deploymentStage = branchName.replaceAll('/', '-');
+
     if (this.prNumber) {
       if (!GITHUB_BASE_REF) {
         throw new Error('Unable to determine base ref from GITHUB_BASE_REF');
       }
 
       const normalizedBaseRef = GITHUB_BASE_REF.replaceAll('/', '-');
-      debug('Normalized Base Ref: ' + normalizedBaseRef);
-
       deploymentStage = `${normalizedBaseRef}-pr-${this.prNumber}`;
     }
 
