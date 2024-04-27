@@ -57,6 +57,8 @@ export class Action {
   async pre(state: State): Promise<State> {
     state.stage = this.stage;
 
+    exportVariable('STAGE', state.stage);
+
     if (boolean(getInput('destroy') || 'false') === true) {
       notice(`Destruction enabled. Destroying ${this.stage}...`);
       state.action = 'destroy';
