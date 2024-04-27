@@ -272,11 +272,13 @@ export class Action {
   }
 
   get stage(): string {
-    core.startGroup('Stage Details');
-
     const [, branchType, branchId] = GITHUB_REF?.split('/') || [];
-    core.info(`Branch Type: ${branchType}`);
-    core.info(`Branch ID: ${branchId}`);
+    debug(`GITHUB_REF: ${GITHUB_REF}`);
+    debug(`GITHUB_BASE_REF: ${GITHUB_BASE_REF}`);
+    debug(`GITHUB_HEAD_REF: ${GITHUB_HEAD_REF}`);
+    debug(`Is PR: ${this.isPr}`);
+    debug(`Branch Type: ${branchType}`);
+    debug(`Branch ID: ${branchId}`);
 
     if (!branchId) {
       debug(`GITHUB_REF: ${GITHUB_REF}`);
@@ -293,8 +295,6 @@ export class Action {
       deploymentStage = `${GITHUB_BASE_REF.replaceAll('/', '-')}-pr-${branchId}`;
     }
 
-    core.info(`Deployment Stage: ${deploymentStage}`);
-    core.endGroup();
     return deploymentStage;
   }
 
