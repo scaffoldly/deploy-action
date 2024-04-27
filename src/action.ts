@@ -55,6 +55,8 @@ export type State = {
 
 export class Action {
   async pre(state: State): Promise<State> {
+    console.log('!!! env', JSON.stringify(process.env, null, 2));
+    console.log('!!! payload', JSON.stringify(context.payload, null, 2));
     state.stage = this.stage;
 
     if (boolean(getInput('destroy') || 'false') === true) {
