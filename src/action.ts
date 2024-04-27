@@ -1,4 +1,5 @@
-import { debug, getIDToken, exportVariable, notice, error, info } from '@actions/core';
+import { debug, getIDToken, exportVariable, notice, error } from '@actions/core';
+import * as core from '@actions/core';
 import { getInput } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 import { warn } from 'console';
@@ -271,7 +272,11 @@ export class Action {
   }
 
   get stage(): string {
+    core.startGroup('Stage Details');
+
     const [, branchType, branchId] = GITHUB_REF?.split('/') || [];
+    core.info(`Branch Type: ${branchType}`);
+    core.info(`Branch ID: ${branchId}`);
 
     if (!branchId) {
       debug(`GITHUB_REF: ${GITHUB_REF}`);
@@ -288,6 +293,8 @@ export class Action {
       deploymentStage = `${GITHUB_BASE_REF.replaceAll('/', '-')}-pr-${branchId}`;
     }
 
+    core.info(`Deployment Stage: ${deploymentStage}`);
+    core.endGroup();
     return deploymentStage;
   }
 
@@ -531,7 +538,7 @@ export class Action {
     }
 
     if (commentId && state.longMessage) {
-      info(`Updating PR comment ${commentId}`);
+      debug(`Updating PR comment ${commentId}`);
 
       await octokit.rest.issues.updateComment({
         comment_id: commentId,
