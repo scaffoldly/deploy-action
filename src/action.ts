@@ -288,7 +288,7 @@ export class Action {
         throw new Error('Unable to determine base ref from GITHUB_BASE_REF');
       }
 
-      const normalizedBaseRef = GITHUB_BASE_REF.replaceAll('/', '-');
+      const normalizedBaseRef = GITHUB_BASE_REF.replaceAll('/', '-').replaceAll('_', '-');
       deploymentStage = `${normalizedBaseRef}-pr-${this.prNumber}`;
     }
 
