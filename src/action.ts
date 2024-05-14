@@ -281,7 +281,7 @@ export class Action {
       throw new Error('Unable to determine branch from GITHUB_REF');
     }
 
-    let deploymentStage = branchName.replaceAll('/', '-');
+    let deploymentStage = branchName.replaceAll('/', '-').replaceAll('_', '-');
 
     if (this.prNumber) {
       if (!GITHUB_BASE_REF) {
